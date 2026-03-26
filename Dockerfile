@@ -9,8 +9,11 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
+# Copy patches if they exist
+COPY patches* ./patches/
+
 # Install all dependencies (including devDeps for build)
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source
 COPY . .
@@ -28,13 +31,16 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
+# Copy patches if they exist
+COPY patches* ./patches/
+
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --no-frozen-lockfile --prod
 
 # Copy built client
 COPY --from=builder /app/dist ./dist
 
-# Copy server source (tsx compiles on-the-fly in prod)
+# Copy server source
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/shared ./shared
