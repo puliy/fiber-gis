@@ -15,6 +15,13 @@
       "when": 1774554347883,
       "tag": "0001_amazing_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774557850778,
+      "tag": "0002_clever_steve_rogers",
+      "breakpoints": true
     }
   ]
 }

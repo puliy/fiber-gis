@@ -18,6 +18,11 @@ import {
   cableDucts,
   cableTemplates,
   cables,
+  cableModules,
+  cableFibers,
+  fiberColors,
+  spliceClosures,
+  fiberSplices,
   mapPoints,
   publicMapTokens,
   regions,
@@ -435,4 +440,238 @@ export async function searchMapPoints(regionId: number, query: string, limit = 2
       )
     )
     .limit(limit);
+}
+
+// ─── Fiber Colors ─────────────────────────────────────────────────────────────
+
+export async function getFiberColors() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(fiberColors).orderBy(fiberColors.sortOrder);
+}
+
+// ─── Cable Modules & Fibers ───────────────────────────────────────────────────
+
+export async function getModulesByTemplate(templateId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(cableModules)
+    .where(eq(cableModules.templateId, templateId))
+    .orderBy(cableModules.moduleNumber);
+}
+
+export async function getFibersByModule(moduleId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(cableFibers)
+    .where(eq(cableFibers.moduleId, moduleId))
+    .orderBy(cableFibers.fiberNumber);
+}
+
+export async function upsertCableModule(data: {
+  id?: number;
+  templateId: number;
+  moduleNumber: number;
+  colorId?: number | null;
+  fiberCount: number;
+  description?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (data.id) {
+    await db
+      .update(cableModules)
+      .set({
+        moduleNumber: data.moduleNumber,
+        colorId: data.colorId ?? null,
+        fiberCount: data.fiberCount,
+        description: data.description ?? null,
+      })
+      .where(eq(cableModules.id, data.id));
+    return data.id;
+  }
+  const result = await db.insert(cableModules).values({
+    templateId: data.templateId,
+    moduleNumber: data.moduleNumber,
+    colorId: data.colorId ?? null,
+    fiberCount: data.fiberCount,
+    description: data.description ?? null,
+  });
+  return (result[0] as any).insertId as number;
+}
+
+export async function deleteCableModule(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  // Cascade delete fibers
+  await db.delete(cableFibers).where(eq(cableFibers.moduleId, id));
+  await db.delete(cableModules).where(eq(cableModules.id, id));
+}
+
+export async function upsertCableFiber(data: {
+  id?: number;
+  moduleId: number;
+  fiberNumber: number;
+  colorId?: number | null;
+  fiberType?: "G.652D" | "G.657A1" | "G.657A2" | "OM3" | "OM4";
+  description?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (data.id) {
+    await db
+      .update(cableFibers)
+      .set({
+        fiberNumber: data.fiberNumber,
+        colorId: data.colorId ?? null,
+        fiberType: data.fiberType ?? "G.652D",
+        description: data.description ?? null,
+      })
+      .where(eq(cableFibers.id, data.id));
+    return data.id;
+  }
+  const result = await db.insert(cableFibers).values({
+    moduleId: data.moduleId,
+    fiberNumber: data.fiberNumber,
+    colorId: data.colorId ?? null,
+    fiberType: data.fiberType ?? "G.652D",
+    description: data.description ?? null,
+  });
+  return (result[0] as any).insertId as number;
+}
+
+export async function deleteCableFiber(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(cableFibers).where(eq(cableFibers.id, id));
+}
+
+// ─── Splice Closures ──────────────────────────────────────────────────────────
+
+export async function getSpliceClosureByMapPoint(mapPointId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(spliceClosures)
+    .where(eq(spliceClosures.mapPointId, mapPointId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getSpliceClosureById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(spliceClosures)
+    .where(eq(spliceClosures.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertSpliceClosure(data: {
+  id?: number;
+  mapPointId: number;
+  name?: string | null;
+  closureType?: "inline" | "branch" | "terminal";
+  capacity?: number;
+  manufacturer?: string | null;
+  model?: string | null;
+  description?: string | null;
+  createdBy?: number | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (data.id) {
+    await db
+      .update(spliceClosures)
+      .set({
+        name: data.name ?? null,
+        closureType: data.closureType ?? "inline",
+        capacity: data.capacity ?? 24,
+        manufacturer: data.manufacturer ?? null,
+        model: data.model ?? null,
+        description: data.description ?? null,
+      })
+      .where(eq(spliceClosures.id, data.id));
+    return data.id;
+  }
+  const result = await db.insert(spliceClosures).values({
+    mapPointId: data.mapPointId,
+    name: data.name ?? null,
+    closureType: data.closureType ?? "inline",
+    capacity: data.capacity ?? 24,
+    manufacturer: data.manufacturer ?? null,
+    model: data.model ?? null,
+    description: data.description ?? null,
+    createdBy: data.createdBy ?? null,
+  });
+  return (result[0] as any).insertId as number;
+}
+
+// ─── Fiber Splices ────────────────────────────────────────────────────────────
+
+export async function getFiberSplicesByClosure(closureId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(fiberSplices)
+    .where(eq(fiberSplices.closureId, closureId))
+    .orderBy(fiberSplices.sortOrder, fiberSplices.id);
+}
+
+export async function upsertFiberSplice(data: {
+  id?: number;
+  closureId: number;
+  cableAId?: number | null;
+  moduleANumber?: number | null;
+  fiberANumber?: number | null;
+  cableBId?: number | null;
+  moduleBNumber?: number | null;
+  fiberBNumber?: number | null;
+  spliceType?: "fusion" | "mechanical";
+  loss?: string | null;
+  notes?: string | null;
+  sortOrder?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const payload = {
+    closureId: data.closureId,
+    cableAId: data.cableAId ?? null,
+    moduleANumber: data.moduleANumber ?? null,
+    fiberANumber: data.fiberANumber ?? null,
+    cableBId: data.cableBId ?? null,
+    moduleBNumber: data.moduleBNumber ?? null,
+    fiberBNumber: data.fiberBNumber ?? null,
+    spliceType: data.spliceType ?? "fusion",
+    loss: data.loss ?? null,
+    notes: data.notes ?? null,
+    sortOrder: data.sortOrder ?? 0,
+  };
+  if (data.id) {
+    await db.update(fiberSplices).set(payload).where(eq(fiberSplices.id, data.id));
+    return data.id;
+  }
+  const result = await db.insert(fiberSplices).values(payload);
+  return (result[0] as any).insertId as number;
+}
+
+export async function deleteFiberSplice(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(fiberSplices).where(eq(fiberSplices.id, id));
+}
+
+export async function deleteSpliceClosure(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(fiberSplices).where(eq(fiberSplices.closureId, id));
+  await db.delete(spliceClosures).where(eq(spliceClosures.id, id));
 }

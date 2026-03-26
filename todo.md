@@ -41,13 +41,27 @@
 - [ ] Docker Compose config for Selectel deployment
 - [ ] README with deployment instructions
 
-## Этап 2: Кабели и оптика
-- [ ] Шаблоны кабелей: полный CRUD в UI (модули, волокна, цвета)
-- [ ] Учёт волокон: трассировка по маршруту кабелей
-- [ ] Сварочные соединения в муфтах
-- [ ] Кабельная канализация (трубы, диаметр, материал)
+## Этап 2: Учёт волокон и оптические кроссы
 
-## Этап 3: Оборудование
+### БД схема
+- [x] cable_templates + cable_modules + cable_fibers (шаблоны кабелей)
+- [x] fiber_colors — справочник цветов IEC 60304 (12 цветов)
+- [x] splice_closures + fiber_splices — муфты и сварки
+- [ ] optical_crosses + cross_ports + port_connections — кроссы
+
+### Бэкенд
+- [x] tRPC: cableTemplates CRUD (модули, волокна, цвета)
+- [x] tRPC: spliceClosure CRUD + fiber_splices
+- [ ] tRPC: opticalCross CRUD + порты + коммутация
+- [ ] tRPC: fibers.trace — трассировка волокна по маршруту
+
+### Фронтенд
+- [x] TemplatesPage — полный CRUD шаблонов (модули/волокна/цвета)
+- [x] SplicePassportPage — страница паспорта муфты со списком сварок
+- [ ] CrossPage — страница кросса: схема портов и коммутации
+- [ ] FiberTrace — трассировка волокна на карте
+
+## Этап 3: Активное оборудование
 - [ ] Оптические кроссы (патч-панели, порты, коммутация)
 - [ ] Активное оборудование (OLT, коммутаторы, ONT)
 - [ ] Сплиттеры GPON

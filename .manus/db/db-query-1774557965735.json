@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT IGNORE INTO fiber_colors (id, name, hex_code, iec_number, sort_order) VALUES\n(1,  'Синий',        '#0070C0', 1,  1),\n(2,  'Оранжевый',    '#FF6600', 2,  2),\n(3,  'Зелёный',      '#00B050', 3,  3),\n(4,  'Коричневый',   '#7B3F00', 4,  4),\n(5,  'Серый',        '#808080', 5,  5),\n(6,  'Белый',        '#FFFFFF', 6,  6),\n(7,  'Красный',      '#FF0000', 7,  7),\n(8,  'Чёрный',       '#000000', 8,  8),\n(9,  'Жёлтый',       '#FFFF00', 9,  9),\n(10, 'Фиолетовый',   '#7030A0', 10, 10),\n(11, 'Розовый',      '#FF69B4', 11, 11),\n(12, 'Голубой',      '#00B0F0', 12, 12);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2YT6b9uT3dRVHkX.55ab4726c7ea --database GGveEPkUK2b4ESPQoRgPRx --execute \nINSERT IGNORE INTO fiber_colors (id, name, hex_code, iec_number, sort_order) VALUES\n(1,  'Синий',        '#0070C0', 1,  1),\n(2,  'Оранжевый',    '#FF6600', 2,  2),\n(3,  'Зелёный',      '#00B050', 3,  3),\n(4,  'Коричневый',   '#7B3F00', 4,  4),\n(5,  'Серый',        '#808080', 5,  5),\n(6,  'Белый',        '#FFFFFF', 6,  6),\n(7,  'Красный',      '#FF0000', 7,  7),\n(8,  'Чёрный',       '#000000', 8,  8),\n(9,  'Жёлтый',       '#FFFF00', 9,  9),\n(10, 'Фиолетовый',   '#7030A0', 10, 10),\n(11, 'Розовый',      '#FF69B4', 11, 11),\n(12, 'Голубой',      '#00B0F0', 12, 12);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 78
+}

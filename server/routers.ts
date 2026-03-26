@@ -36,6 +36,20 @@ import {
   updateUserRole,
   validatePublicToken,
   searchMapPoints,
+  getFiberColors,
+  getModulesByTemplate,
+  getFibersByModule,
+  upsertCableModule,
+  deleteCableModule,
+  upsertCableFiber,
+  deleteCableFiber,
+  getSpliceClosureByMapPoint,
+  getSpliceClosureById,
+  upsertSpliceClosure,
+  getFiberSplicesByClosure,
+  upsertFiberSplice,
+  deleteFiberSplice,
+  deleteSpliceClosure,
 } from "./db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -411,6 +425,118 @@ const publicMapRouter = router({
     .mutation(({ input }) => deletePublicToken(input.id)),
 });
 
+// ─── Fiber Colors Router ─────────────────────────────────────────────────────
+
+const fiberColorsRouter = router({
+  list: publicProcedure.query(() => getFiberColors()),
+});
+
+// ─── Cable Modules Router ─────────────────────────────────────────────────────
+
+const cableModulesRouter = router({
+  byTemplate: protectedProcedure
+    .input(z.object({ templateId: z.number().int().positive() }))
+    .query(({ input }) => getModulesByTemplate(input.templateId)),
+
+  fibersByModule: protectedProcedure
+    .input(z.object({ moduleId: z.number().int().positive() }))
+    .query(({ input }) => getFibersByModule(input.moduleId)),
+
+  upsertModule: editorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive().optional(),
+        templateId: z.number().int().positive(),
+        moduleNumber: z.number().int().positive(),
+        colorId: z.number().int().positive().nullable().optional(),
+        fiberCount: z.number().int().min(1).max(144),
+        description: z.string().max(255).nullable().optional(),
+      })
+    )
+    .mutation(({ input }) => upsertCableModule(input)),
+
+  deleteModule: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteCableModule(input.id)),
+
+  upsertFiber: editorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive().optional(),
+        moduleId: z.number().int().positive(),
+        fiberNumber: z.number().int().positive(),
+        colorId: z.number().int().positive().nullable().optional(),
+        fiberType: z.enum(["G.652D", "G.657A1", "G.657A2", "OM3", "OM4"]).optional(),
+        description: z.string().max(255).nullable().optional(),
+      })
+    )
+    .mutation(({ input }) => upsertCableFiber(input)),
+
+  deleteFiber: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteCableFiber(input.id)),
+});
+
+// ─── Splice Closures Router ───────────────────────────────────────────────────
+
+const spliceRouter = router({
+  byMapPoint: protectedProcedure
+    .input(z.object({ mapPointId: z.number().int().positive() }))
+    .query(({ input }) => getSpliceClosureByMapPoint(input.mapPointId)),
+
+  byId: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) => getSpliceClosureById(input.id)),
+
+  upsert: editorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive().optional(),
+        mapPointId: z.number().int().positive(),
+        name: z.string().max(255).nullable().optional(),
+        closureType: z.enum(["inline", "branch", "terminal"]).optional(),
+        capacity: z.number().int().min(1).max(9999).optional(),
+        manufacturer: z.string().max(255).nullable().optional(),
+        model: z.string().max(255).nullable().optional(),
+        description: z.string().nullable().optional(),
+      })
+    )
+    .mutation(({ input, ctx }) =>
+      upsertSpliceClosure({ ...input, createdBy: ctx.user.id })
+    ),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteSpliceClosure(input.id)),
+
+  splices: protectedProcedure
+    .input(z.object({ closureId: z.number().int().positive() }))
+    .query(({ input }) => getFiberSplicesByClosure(input.closureId)),
+
+  upsertSplice: editorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive().optional(),
+        closureId: z.number().int().positive(),
+        cableAId: z.number().int().positive().nullable().optional(),
+        moduleANumber: z.number().int().positive().nullable().optional(),
+        fiberANumber: z.number().int().positive().nullable().optional(),
+        cableBId: z.number().int().positive().nullable().optional(),
+        moduleBNumber: z.number().int().positive().nullable().optional(),
+        fiberBNumber: z.number().int().positive().nullable().optional(),
+        spliceType: z.enum(["fusion", "mechanical"]).optional(),
+        loss: z.string().max(10).nullable().optional(),
+        notes: z.string().nullable().optional(),
+        sortOrder: z.number().int().min(0).optional(),
+      })
+    )
+    .mutation(({ input }) => upsertFiberSplice(input)),
+
+  deleteSplice: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteFiberSplice(input.id)),
+});
+
 const adminRouter = router({
   users: adminProcedure.query(() => getAllUsers()),
   updateUserRole: adminProcedure
@@ -444,6 +570,9 @@ export const appRouter = router({
   audit: auditRouter,
   publicMap: publicMapRouter,
   admin: adminRouter,
+  fiberColors: fiberColorsRouter,
+  cableModules: cableModulesRouter,
+  splice: spliceRouter,
 });
 
 export type AppRouter = typeof appRouter;

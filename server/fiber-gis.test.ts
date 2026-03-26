@@ -163,3 +163,134 @@ describe("publicMap", () => {
     expect(result == null).toBe(true); // null or undefined both indicate invalid token
   });
 });
+
+// ─── Fiber Colors Tests ───────────────────────────────────────────────────────
+
+describe("fiberColors", () => {
+  it("list is public and returns array", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.fiberColors.list();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("list returns 12 IEC 60304 colors for authenticated user", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.fiberColors.list();
+    expect(Array.isArray(result)).toBe(true);
+    // Should have 12 standard IEC colors seeded
+    expect(result.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("colors have required fields", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.fiberColors.list();
+    if (result.length > 0) {
+      const first = result[0];
+      expect(first).toHaveProperty("id");
+      expect(first).toHaveProperty("name");
+      expect(first).toHaveProperty("hexCode");
+    }
+  });
+});
+
+// ─── Cable Modules Tests ──────────────────────────────────────────────────────
+
+describe("cableModules", () => {
+  it("byTemplate requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.cableModules.byTemplate({ templateId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("byTemplate returns array for authenticated user", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.cableModules.byTemplate({ templateId: 9999 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("fibersByModule requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.cableModules.fibersByModule({ moduleId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("fibersByModule returns array for authenticated user", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.cableModules.fibersByModule({ moduleId: 9999 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("upsertModule requires editor role (not viewer)", async () => {
+    const caller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(
+      caller.cableModules.upsertModule({ templateId: 1, moduleNumber: 1, fiberCount: 12 })
+    ).rejects.toThrow();
+  });
+
+  it("deleteModule requires editor role (not viewer)", async () => {
+    const caller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(
+      caller.cableModules.deleteModule({ id: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+// ─── Splice Closure Tests ─────────────────────────────────────────────────────
+
+describe("splice", () => {
+  it("byMapPoint requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.splice.byMapPoint({ mapPointId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("byMapPoint returns null for non-existent map point", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.splice.byMapPoint({ mapPointId: 999999 });
+    expect(result).toBeNull();
+  });
+
+  it("byId requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.splice.byId({ id: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("byId returns null for non-existent closure", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.splice.byId({ id: 999999 });
+    expect(result).toBeNull();
+  });
+
+  it("splices requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.splice.splices({ closureId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("splices returns empty array for non-existent closure", async () => {
+    const caller = appRouter.createCaller(createUserContext());
+    const result = await caller.splice.splices({ closureId: 999999 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  it("upsert requires editor role (not viewer)", async () => {
+    const caller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(
+      caller.splice.upsert({ mapPointId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("deleteSplice requires editor role (not viewer)", async () => {
+    const caller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(
+      caller.splice.deleteSplice({ id: 1 })
+    ).rejects.toThrow();
+  });
+});

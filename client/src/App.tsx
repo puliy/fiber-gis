@@ -8,6 +8,7 @@ import MapPage from "./pages/MapPage";
 import AdminPage from "./pages/AdminPage";
 import TemplatesPage from "./pages/TemplatesPage";
 import PublicMapPage from "./pages/PublicMapPage";
+import SplicePassportPage from "./pages/SplicePassportPage";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/" component={MapPage} />
       <Route path="/admin" component={AdminPage} />
       <Route path="/templates" component={TemplatesPage} />
+      <Route path="/splice/:id" component={SplicePassportPage} />
       <Route path="/public/:token" component={PublicMapPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
