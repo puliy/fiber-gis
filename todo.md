@@ -140,8 +140,8 @@
 - [x] Кнопка "Открыть в FiberGIS" (ссылка на основной сайт)
 
 ### DEPLOY.md для Timeweb Cloud + fibergis.ru
-- [ ] Инструкция для Timeweb Cloud VPS (Ubuntu 22.04)
-- [ ] Привязка домена fibergis.ru к серверу
-- [ ] SSL через Let's Encrypt (certbot)
-- [ ] Docker Compose запуск + автозапуск через systemd
-- [ ] Настройка MySQL на Timeweb (внешняя БД или в Docker)
+- [x] Инструкция для Timeweb Cloud VPS (Ubuntu 24.04)
+- [x] Привязка домена fibergis.ru к серверу (A-запись 188.225.84.38)
+- [x] SSL через Let's Encrypt (certbot) — команда в DEPLOY.md
+- [x] Docker Compose запуск + автозапуск через systemd
+- [x] Настройка MySQL в Docker (docker-compose.yml)
