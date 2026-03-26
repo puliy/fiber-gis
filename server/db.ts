@@ -1004,3 +1004,49 @@ export async function deleteSplitter(id: number) {
   const db = await getDb(); if (!db) return null as any;
   await db.delete(splitters).where(eq(splitters.id, id));
 }
+
+// ─── Cable Ducts ──────────────────────────────────────────────────────────────
+export async function getCableDuctsByBounds(regionId: number, minLat: number, minLng: number, maxLat: number, maxLng: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(cableDucts).where(
+    and(
+      eq(cableDucts.regionId, regionId),
+      gte(cableDucts.bboxMinLat, String(minLat - 0.01)),
+      lte(cableDucts.bboxMaxLat, String(maxLat + 0.01)),
+      gte(cableDucts.bboxMinLng, String(minLng - 0.01)),
+      lte(cableDucts.bboxMaxLng, String(maxLng + 0.01))
+    )
+  );
+}
+export async function getCableDuctsByRegion(regionId: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(cableDucts).where(eq(cableDucts.regionId, regionId)).orderBy(cableDucts.id);
+}
+export async function getCableDuctById(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  const rows = await db.select().from(cableDucts).where(eq(cableDucts.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+export async function upsertCableDuct(data: Partial<CableDuct> & { regionId: number; route: { lat: number; lng: number }[] }) {
+  const db = await getDb(); if (!db) return null as any;
+  // Compute bounding box
+  const lats = data.route.map((p) => p.lat);
+  const lngs = data.route.map((p) => p.lng);
+  const bbox = {
+    bboxMinLat: String(Math.min(...lats)),
+    bboxMaxLat: String(Math.max(...lats)),
+    bboxMinLng: String(Math.min(...lngs)),
+    bboxMaxLng: String(Math.max(...lngs)),
+  };
+  const payload = { ...data, ...bbox, route: JSON.stringify(data.route) };
+  if (data.id) {
+    await db.update(cableDucts).set({ ...payload, updatedAt: new Date() }).where(eq(cableDucts.id, data.id));
+    return data.id;
+  }
+  const [result] = await db.insert(cableDucts).values(payload as any);
+  return (result as any).insertId as number;
+}
+export async function deleteCableDuct(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  await db.delete(cableDucts).where(eq(cableDucts.id, id));
+}

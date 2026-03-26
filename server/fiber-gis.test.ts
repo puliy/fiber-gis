@@ -485,3 +485,43 @@ describe("generateInfrastructureReport", () => {
     expect(buffer.length).toBeGreaterThan(500);
   });
 });
+
+// ─── Cable Ducts ──────────────────────────────────────────────────────────────
+describe("cableDucts router", () => {
+  it("byRegion is public and returns array", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.cableDucts.byRegion({ regionId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("upsert requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.cableDucts.upsert({
+        regionId: 1,
+        route: [{ lat: 55.0, lng: 37.0 }, { lat: 55.1, lng: 37.1 }],
+      })
+    ).rejects.toThrow();
+  });
+
+  it("upsert creates duct for admin user", async () => {
+    const caller = appRouter.createCaller(createUserContext("admin"));
+    const result = await caller.cableDucts.upsert({
+      regionId: 1,
+      name: "Тест канализация",
+      capacity: 4,
+      route: [{ lat: 55.0, lng: 37.0 }, { lat: 55.1, lng: 37.1 }],
+    });
+    expect(result).toBeDefined();
+  });
+
+  it("viewer cannot upsert duct", async () => {
+    const caller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(
+      caller.cableDucts.upsert({
+        regionId: 1,
+        route: [{ lat: 55.0, lng: 37.0 }, { lat: 55.1, lng: 37.1 }],
+      })
+    ).rejects.toThrow();
+  });
+});

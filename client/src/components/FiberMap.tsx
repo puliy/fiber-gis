@@ -13,7 +13,7 @@ L.Icon.Default.mergeOptions({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type MapTool = "select" | "add_pole" | "add_manhole" | "add_splice" | "add_node_trunk" | "add_node_district" | "add_cable" | "add_building";
+export type MapTool = "select" | "add_pole" | "add_manhole" | "add_splice" | "add_node_trunk" | "add_node_district" | "add_cable" | "add_building" | "add_duct";
 
 export type LayerVisibility = {
   poles: boolean;
@@ -112,6 +112,7 @@ export default function FiberMap({
   const cableDrawRef = useRef<{ points: L.LatLng[]; polyline: L.Polyline | null }>({ points: [], polyline: null });
   const traceLayerRef = useRef<L.LayerGroup | null>(null);
   const buildingDrawRef = useRef<{ points: L.LatLng[]; polygon: L.Polygon | null }>({ points: [], polygon: null });
+  const ductDrawRef = useRef<{ points: L.LatLng[]; polyline: L.Polyline | null }>({ points: [], polyline: null });
   const [bounds, setBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null);
 
   // Data queries
@@ -123,6 +124,11 @@ export default function FiberMap({
   const { data: cablesData, refetch: refetchCables } = trpc.cables.inBounds.useQuery(
     bounds ? { regionId, ...bounds } : { regionId, minLat: centerLat - 0.05, minLng: centerLng - 0.05, maxLat: centerLat + 0.05, maxLng: centerLng + 0.05 },
     { enabled: true, staleTime: 10000 }
+  );
+
+  const { data: ductsData } = trpc.cableDucts.byRegion.useQuery(
+    { regionId },
+    { enabled: true, staleTime: 30000 }
   );
 
   // Initialize map
@@ -335,7 +341,40 @@ export default function FiberMap({
     }
   }, [cablesData, layerVisibility]);
 
-  // ─── Trace polyline ──────────────────────────────────────────────────────────
+  // ─── Cable Ducts layer ───────────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ductsData) return;
+
+    // Remove old duct layers
+    map.eachLayer((l) => {
+      if ((l as any)._isDuctLayer) map.removeLayer(l);
+    });
+
+    if (!layerVisibility.cableDucts) return;
+
+    for (const duct of ductsData) {
+      try {
+        const route = (typeof duct.route === "string" ? JSON.parse(duct.route) : duct.route) as { lat: number; lng: number }[];
+        if (!route || route.length < 2) continue;
+        const latlngs = route.map((p) => [p.lat, p.lng] as [number, number]);
+        const pl = L.polyline(latlngs, {
+          color: "#a0d080",
+          weight: 6,
+          opacity: 0.7,
+          dashArray: "12,4",
+        }) as any;
+        pl._isDuctLayer = true;
+        pl.bindTooltip(
+          `<div style="font-size:11px"><strong>${duct.name ?? "Канализация"}</strong><br/>Каналов: ${duct.capacity ?? 1} · ${duct.material ?? "plastic"}</div>`,
+          { sticky: true }
+        );
+        pl.addTo(map);
+      } catch {}
+    }
+  }, [ductsData, layerVisibility]);
+
+  // ─── Trace polyline ───────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -474,12 +513,54 @@ export default function FiberMap({
     return () => { mapRef.current?.off("dblclick", handler); };
   }, [finishBuildingDraw]);
 
+  // ─── Duct drawing ───────────────────────────────────────────────────────────────────────────────
+
+  const handleDuctClick = useCallback((latlng: L.LatLng, map: L.Map) => {
+    ductDrawRef.current.points.push(latlng);
+    if (ductDrawRef.current.polyline) ductDrawRef.current.polyline.remove();
+    ductDrawRef.current.polyline = L.polyline(
+      ductDrawRef.current.points,
+      { color: "#a0d080", weight: 6, dashArray: "12,4", opacity: 0.8 }
+    ).addTo(map);
+    if (ductDrawRef.current.points.length >= 2) {
+      toast.info("Двойной клик — завершить канализацию, Escape — отмена", { id: "duct-draw", duration: 3000 });
+    }
+  }, []);
+
+  const finishDuctDraw = useCallback(() => {
+    const pts = ductDrawRef.current.points;
+    if (pts.length >= 2) {
+      onObjectCreate("duct", { route: pts.map((p) => ({ lat: p.lat, lng: p.lng })) });
+    }
+    cancelDuctDraw();
+  }, [onObjectCreate]);
+
+  const cancelDuctDraw = useCallback(() => {
+    if (ductDrawRef.current.polyline) {
+      ductDrawRef.current.polyline.remove();
+      ductDrawRef.current.polyline = null;
+    }
+    ductDrawRef.current.points = [];
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const handler = () => {
+      if (activeToolRef.current === "add_duct" && ductDrawRef.current.points.length >= 2) {
+        finishDuctDraw();
+      }
+    };
+    mapRef.current.on("dblclick", handler);
+    return () => { mapRef.current?.off("dblclick", handler); };
+  }, [finishDuctDraw]);
+
   // Escape to cancel drawing
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         cancelCableDraw();
         cancelBuildingDraw();
+        cancelDuctDraw();
       }
     };
     window.addEventListener("keydown", handler);

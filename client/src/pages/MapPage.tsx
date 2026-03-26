@@ -31,7 +31,8 @@ import { useLocation } from "wouter";
 type CreateData =
   | { kind: "point"; type: string; lat: number; lng: number }
   | { kind: "cable"; route: { lat: number; lng: number }[] }
-  | { kind: "building"; polygon: { lat: number; lng: number }[] };
+  | { kind: "building"; polygon: { lat: number; lng: number }[] }
+  | { kind: "duct"; route: { lat: number; lng: number }[] };
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
   select:            <MousePointer2 className="w-4 h-4" />,
@@ -113,6 +114,8 @@ export default function MapPage() {
       setCreateData({ kind: "cable", route: d.route as { lat: number; lng: number }[] });
     } else if (type === "building") {
       setCreateData({ kind: "building", polygon: d.polygon as { lat: number; lng: number }[] });
+    } else if (type === "duct") {
+      setCreateData({ kind: "duct", route: d.route as { lat: number; lng: number }[] });
     } else {
       setCreateData({ kind: "point", type, lat: d.lat as number, lng: d.lng as number });
     }

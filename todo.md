@@ -106,3 +106,21 @@
 ### Сводные отчёты
 - [x] Экспорт инфраструктуры по региону в Excel (/api/reports/infrastructure/:regionId) — 5 листов
 - [x] Кнопка "Скачать отчёт Excel" в меню MapPage
+
+## Финальный этап 2 — "Сделать всё до конца"
+
+### Привязка оборудования к карте
+- [x] Попап узла: кнопка "Оборудование" в ObjectDialog → /equipment?pointId=X
+- [x] Кнопка "Открыть оборудование" в попапе добавлена (EquipmentButton)
+
+### Кабельная канализация
+- [x] БД: таблица cable_ducts (уже была в миграции 0001)
+- [x] tRPC: cableDucts CRUD (byRegion, byBounds, byId, upsert, delete)
+- [x] Карта: инструмент add_duct в MapToolbar + рисование полилиний в FiberMap
+- [x] Слой "Канализация" в FiberMap (зелёные полилинии с толщиной 4px)
+
+### Docker Compose + README
+- [x] docker-compose.yml (Node.js + Nginx + MySQL)
+- [x] Dockerfile (двухэтапная сборка: builder + runner)
+- [x] nginx.conf с SSL-проксированием
+- [x] DEPLOY.md с пошаговой инструкцией для Selectel/Timeweb

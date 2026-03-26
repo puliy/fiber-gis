@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getTypeLabel } from "./FiberMap";
-import { MapPin, Cable, Building2 } from "lucide-react";
+import { MapPin, Cable, Building2, Pipette } from "lucide-react";
 
 type PointType = "pole" | "manhole" | "splice" | "mast" | "entry_point" | "node_district" | "node_trunk" | "flag" | "camera" | "other";
 type CableLayingType = "aerial" | "underground" | "duct" | "building";
@@ -18,7 +18,8 @@ type CableLayingType = "aerial" | "underground" | "duct" | "building";
 interface CreatePointData  { kind: "point";    type: PointType; lat: number; lng: number; }
 interface CreateCableData  { kind: "cable";    route: { lat: number; lng: number }[]; }
 interface CreateBuildingData { kind: "building"; polygon: { lat: number; lng: number }[]; }
-type CreateData = CreatePointData | CreateCableData | CreateBuildingData;
+interface CreateDuctData    { kind: "duct";     route: { lat: number; lng: number }[]; }
+type CreateData = CreatePointData | CreateCableData | CreateBuildingData | CreateDuctData;
 
 interface Props {
   data: CreateData | null;
@@ -60,6 +61,8 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
     }
   }, [data?.kind, (data as CreatePointData)?.lat]);
 
+  const [ductChannels, setDuctChannels] = useState(1);
+
   const { data: templates } = trpc.cables.templates.useQuery(undefined, {
     enabled: data?.kind === "cable",
   });
@@ -71,6 +74,11 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
 
   const createCable = trpc.cables.create.useMutation({
     onSuccess: () => { toast.success("Кабель добавлен"); onCreated(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createDuct = trpc.cableDucts.upsert.useMutation({
+    onSuccess: () => { toast.success("Канализация добавлена"); onCreated(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -98,20 +106,30 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
     } else if (data.kind === "building") {
       toast.info("Создание зданий будет доступно в следующей версии");
       onClose();
+    } else if (data.kind === "duct") {
+      createDuct.mutate({
+        regionId,
+        name: name || undefined,
+        description: description || undefined,
+        route: data.route,
+        capacity: ductChannels,
+      });
     }
   };
 
-  const isLoading = createPoint.isPending || createCable.isPending;
-  const routeLen  = data?.kind === "cable" ? calcRouteLength(data.route) : 0;
+  const isLoading = createPoint.isPending || createCable.isPending || createDuct.isPending;
+  const routeLen  = (data?.kind === "cable" || data?.kind === "duct") ? calcRouteLength(data.route) : 0;
 
   const titleIcon =
     data?.kind === "cable"    ? <Cable    className="w-4 h-4 text-blue-400" /> :
     data?.kind === "building" ? <Building2 className="w-4 h-4 text-purple-400" /> :
+    data?.kind === "duct"     ? <Pipette  className="w-4 h-4 text-green-300" /> :
                                 <MapPin   className="w-4 h-4 text-green-400" />;
 
   const titleText =
     data?.kind === "cable"    ? "Новый кабель" :
     data?.kind === "building" ? "Новое здание"  :
+    data?.kind === "duct"     ? "Новая канализация" :
                                 "Новый объект";
 
   return (
@@ -166,6 +184,25 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
               </SelectContent>
             </Select>
           </div>
+
+          {/* Duct-specific fields */}
+          {data?.kind === "duct" && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Количество каналов</Label>
+                <Input
+                  type="number" min={1} max={96}
+                  value={ductChannels}
+                  onChange={(e) => setDuctChannels(Number(e.target.value) || 1)}
+                  className="h-8 text-sm bg-input w-24"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 flex items-center justify-between">
+                <span>Точек маршрута: <strong>{data.route.length}</strong></span>
+                <Badge variant="outline" className="text-[10px] px-1.5">~{routeLen} м</Badge>
+              </div>
+            </>
+          )}
 
           {/* Cable-specific fields */}
           {data?.kind === "cable" && (

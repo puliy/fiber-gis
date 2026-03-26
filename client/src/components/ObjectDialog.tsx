@@ -10,11 +10,41 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, History, MapPin, Cable, X, FileText, Network, Plus } from "lucide-react";
+import { Pencil, Trash2, History, MapPin, Cable, X, FileText, Network, Plus, Server } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { getTypeLabel, getStatusLabel, getLayingLabel } from "./FiberMap";
+
+// Кнопка открытия оборудования на объекте
+function EquipmentButton({ mapPointId, onClose, navigate }: { mapPointId: number | null; onClose: () => void; navigate: (path: string) => void }) {
+  const { data: equipList = [] } = trpc.equipment.byMapPoint.useQuery(
+    { mapPointId: mapPointId! },
+    { enabled: !!mapPointId }
+  );
+  const { data: splitterList = [] } = trpc.splitters.byMapPoint.useQuery(
+    { mapPointId: mapPointId! },
+    { enabled: !!mapPointId }
+  );
+
+  const total = equipList.length + splitterList.length;
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-green-600 text-green-400 hover:bg-green-600/10"
+      onClick={() => {
+        if (mapPointId) sessionStorage.setItem("equipPointId", String(mapPointId));
+        onClose();
+        navigate("/equipment");
+      }}
+    >
+      <Server className="w-3 h-3 mr-1" />
+      {total > 0 ? `Оборудование (${total})` : "Оборудование"}
+    </Button>
+  );
+}
 
 // Кнопка открытия оптического кросса — если кросс есть, открывает его; если нет — показывает диалог создания
 function OpticalCrossButton({ mapPointId, onClose, navigate }: { mapPointId: number | null; onClose: () => void; navigate: (path: string) => void }) {
@@ -295,6 +325,9 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
                     )}
                     {objectType === "map_point" && ["node_district", "node_trunk", "building"].includes(pointData?.type ?? "") && (
                       <OpticalCrossButton mapPointId={objectId} onClose={onClose} navigate={navigate} />
+                    )}
+                    {objectType === "map_point" && ["node_district", "node_trunk", "building", "pole", "manhole"].includes(pointData?.type ?? "") && (
+                      <EquipmentButton mapPointId={objectId} onClose={onClose} navigate={navigate} />
                     )}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

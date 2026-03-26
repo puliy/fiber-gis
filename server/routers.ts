@@ -75,6 +75,11 @@ import {
   getSplitterById,
   upsertSplitter,
   deleteSplitter,
+  getCableDuctsByBounds,
+  getCableDuctsByRegion,
+  getCableDuctById,
+  upsertCableDuct,
+  deleteCableDuct,
 } from "./db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -755,7 +760,45 @@ const adminRouter = router({
     .mutation(({ input }) => createCableTemplate(input)),
 });
 
-// ─── App Router ───────────────────────────────────────────────────────────────
+// ─── Cable Ducts Router ─────────────────────────────────────────────────────────────
+const cableDuctsRouter = router({
+  byBounds: publicProcedure
+    .input(z.object({ regionId: z.number(), minLat: z.number(), minLng: z.number(), maxLat: z.number(), maxLng: z.number() }))
+    .query(({ input }) => getCableDuctsByBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng)),
+
+  byRegion: publicProcedure
+    .input(z.object({ regionId: z.number() }))
+    .query(({ input }) => getCableDuctsByRegion(input.regionId)),
+
+  byId: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(({ input }) => getCableDuctById(input.id)),
+
+  upsert: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      regionId: z.number(),
+      name: z.string().optional(),
+      capacity: z.number().min(1).max(96).optional(),
+      diameter: z.number().optional(),
+      material: z.enum(["plastic", "concrete", "metal", "other"]).optional(),
+      route: z.array(z.object({ lat: z.number(), lng: z.number() })).min(2),
+      description: z.string().optional(),
+    }))
+    .mutation(({ input, ctx }) => {
+      if (ctx.user.role === "viewer") throw new TRPCError({ code: "FORBIDDEN" });
+      return upsertCableDuct({ ...input, createdBy: ctx.user.id });
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input, ctx }) => {
+      if (ctx.user.role === "viewer") throw new TRPCError({ code: "FORBIDDEN" });
+      return deleteCableDuct(input.id);
+    }),
+});
+
+// ─── App Router ───────────────────────────────────────────────────────────────────────────────
 
 export const appRouter = router({
   system: systemRouter,
@@ -781,12 +824,12 @@ export const appRouter = router({
   fiberTrace: fiberTraceRouter,
   equipment: activeEquipmentRouter,
   splitters: splittersRouter,
+  cableDucts: cableDuctsRouter,
 });
 
 export type AppRouter = typeof appRouter;
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
-
+// ─── Utility ───────────────────────────────────────────────────────────────────────────────
 function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371000;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;

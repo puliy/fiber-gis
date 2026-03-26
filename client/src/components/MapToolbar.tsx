@@ -2,7 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { MapTool } from "./FiberMap";
 import {
   MousePointer2, Radio, CircleDot, Zap, Network, GitBranch,
-  Cable, Building2, Minus,
+  Cable, Building2, Minus, Pipette,
 } from "lucide-react";
 
 interface MapToolbarProps {
@@ -99,6 +99,14 @@ const TOOLS: {
     icon: <Building2 className="w-4 h-4" />,
     color: "#9b7ec8",
     description: "Нарисовать контур здания (двойной клик — завершить)",
+  },
+  {
+    tool: "add_duct" as MapTool,
+    label: "Канализация",
+    shortLabel: "КН",
+    icon: <Pipette className="w-4 h-4" />,
+    color: "#a0d080",
+    description: "Нарисовать кабельную канализацию (двойной клик — завершить)",
   },
 ];
 
