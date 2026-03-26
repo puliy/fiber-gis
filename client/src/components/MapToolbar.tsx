@@ -104,7 +104,7 @@ const TOOLS: {
 
 export default function MapToolbar({ activeTool, onToolChange, canEdit }: MapToolbarProps) {
   return (
-    <div className="flex flex-col gap-0.5 p-1.5 bg-card border border-border rounded-lg shadow-lg w-11">
+    <div className="flex flex-col gap-0.5">
       {TOOLS.map(({ tool, label, icon, color, description }) => {
         const isActive = activeTool === tool;
         const isDisabled = !canEdit && tool !== "select";

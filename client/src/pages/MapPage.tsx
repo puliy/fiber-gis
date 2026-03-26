@@ -356,7 +356,7 @@ export default function MapPage() {
       {/* ─── Main Content ─────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar — tools (desktop) */}
-        <div className="hidden md:flex flex-col items-center gap-1 p-1.5 bg-card border-r border-border flex-shrink-0 z-10">
+        <div className="hidden sm:flex flex-col items-center p-1.5 bg-card border-r border-border flex-shrink-0 z-10 overflow-y-auto">
           <MapToolbar activeTool={activeTool} onToolChange={setActiveTool} canEdit={canEdit} />
         </div>
 
