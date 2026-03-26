@@ -12,6 +12,7 @@ import SplicePassportPage from "./pages/SplicePassportPage";
 import OpticalCrossPage from "./pages/OpticalCrossPage";
 import FiberTracePage from "./pages/FiberTracePage";
 import EquipmentPage from "./pages/EquipmentPage";
+import ImportPage from "./pages/ImportPage";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/cross/:id" component={OpticalCrossPage} />
       <Route path="/trace" component={FiberTracePage} />
       <Route path="/equipment" component={EquipmentPage} />
+      <Route path="/import" component={ImportPage} />
       <Route path="/public/:token" component={PublicMapPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

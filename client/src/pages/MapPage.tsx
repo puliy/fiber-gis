@@ -22,7 +22,7 @@ import {
 import {
   ChevronDown, Menu, LogOut, User, Settings, Map,
   Activity, Shield, Search, X, MousePointer2, GitBranch,
-  Network, Cable, Building2, Server, FileDown,
+  Network, Cable, Building2, Server, FileDown, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -306,6 +306,9 @@ export default function MapPage() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => { if (selectedRegionId) sessionStorage.setItem("currentRegionId", String(selectedRegionId)); navigate("/equipment"); }} className="text-xs gap-2">
                 <Server className="w-3.5 h-3.5" /> Активное оборудование
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/import")} className="text-xs gap-2">
+                <Upload className="w-3.5 h-3.5" /> Импорт объектов
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {

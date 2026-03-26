@@ -231,9 +231,58 @@ const mapPointsRouter = router({
     .mutation(({ input, ctx }) =>
       deleteMapPoint(input.id, ctx.user.id, ctx.user.name ?? "Unknown")
     ),
+
   search: protectedProcedure
     .input(z.object({ regionId: z.number(), query: z.string().min(2).max(100) }))
     .query(({ input }) => searchMapPoints(input.regionId, input.query)),
+
+  // ─── Batch Import ──────────────────────────────────────────────────────────
+  importBatch: editorProcedure
+    .input(
+      z.object({
+        regionId: z.number().int().positive(),
+        rows: z.array(
+          z.object({
+            name: z.string().optional(),
+            type: z.enum(["pole", "manhole", "splice", "mast", "entry_point", "node_district", "node_trunk", "flag", "camera", "other"]),
+            lat: z.number(),
+            lng: z.number(),
+            address: z.string().optional(),
+            status: z.enum(["plan", "fact", "dismantled"]).default("fact"),
+            description: z.string().optional(),
+          })
+        ).min(1).max(5000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const results: { index: number; id?: number; error?: string }[] = [];
+      for (let i = 0; i < input.rows.length; i++) {
+        const row = input.rows[i];
+        try {
+          const insertId = await createMapPoint(
+            {
+              regionId: input.regionId,
+              lat: String(row.lat),
+              lng: String(row.lng),
+              type: row.type,
+              status: row.status ?? "fact",
+              name: row.name,
+              description: row.description,
+              address: row.address,
+              isPublic: false,
+            },
+            ctx.user.id,
+            ctx.user.name ?? "Unknown"
+          );
+          results.push({ index: i, id: insertId });
+        } catch (err: any) {
+          results.push({ index: i, error: err?.message ?? "Ошибка создания" });
+        }
+      }
+      const created = results.filter((r) => r.id !== undefined).length;
+      const failed = results.filter((r) => r.error !== undefined).length;
+      return { created, failed, results };
+    }),
 });
 
 const cablesRouter = router({
