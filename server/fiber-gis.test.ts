@@ -402,3 +402,86 @@ describe("fiberTrace", () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── Active Equipment & Splitters ────────────────────────────────────────────
+
+const caller = appRouter.createCaller(createUserContext("admin"));
+
+describe("activeEquipment router", () => {
+  it("byRegion returns array (public)", async () => {
+    const anonCaller = appRouter.createCaller(createAnonContext());
+    const result = await anonCaller.equipment.byRegion({ regionId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("upsert returns insertId and delete removes it", async () => {
+    // upsert returns insertId (number) for new records
+    const insertId = await caller.equipment.upsert({
+      regionId: 1,
+      name: "Test OLT vitest",
+      equipType: "OLT",
+      status: "planned",
+    });
+    expect(typeof insertId).toBe("number");
+    expect(insertId).toBeGreaterThan(0);
+
+    await caller.equipment.delete({ id: insertId as number });
+    const listAfter = await caller.equipment.byRegion({ regionId: 1 });
+    expect(listAfter.some((e: { id: number }) => e.id === insertId)).toBe(false);
+  });
+
+  it("upsert requires editor role (not viewer)", async () => {
+    const viewerCaller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(viewerCaller.equipment.upsert({
+      regionId: 1, name: "X", equipType: "OLT", status: "planned",
+    })).rejects.toThrow();
+  });
+});
+
+describe("splitters router", () => {
+  it("byRegion returns array (public)", async () => {
+    const anonCaller = appRouter.createCaller(createAnonContext());
+    const result = await anonCaller.splitters.byRegion({ regionId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("upsert returns insertId and delete removes it", async () => {
+    const insertId = await caller.splitters.upsert({
+      regionId: 1,
+      name: "Test Splitter vitest",
+      splitRatio: "1:8",
+      status: "planned",
+    });
+    expect(typeof insertId).toBe("number");
+    expect(insertId).toBeGreaterThan(0);
+
+    await caller.splitters.delete({ id: insertId as number });
+    const listAfter = await caller.splitters.byRegion({ regionId: 1 });
+    expect(listAfter.some((s: { id: number }) => s.id === insertId)).toBe(false);
+  });
+
+  it("upsert requires editor role (not viewer)", async () => {
+    const viewerCaller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(viewerCaller.splitters.upsert({
+      regionId: 1, name: "X", splitRatio: "1:8", status: "planned",
+    })).rejects.toThrow();
+  });
+});
+
+// ─── Reports ─────────────────────────────────────────────────────────────────
+
+describe("generateInfrastructureReport", () => {
+  it("generates a non-empty Excel buffer for regionId 1", async () => {
+    const { generateInfrastructureReport } = await import("./reports");
+    const buffer = await generateInfrastructureReport(1);
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer.length).toBeGreaterThan(1000);
+  });
+
+  it("generates report for empty region without errors", async () => {
+    const { generateInfrastructureReport } = await import("./reports");
+    const buffer = await generateInfrastructureReport(999999);
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer.length).toBeGreaterThan(500);
+  });
+});

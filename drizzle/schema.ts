@@ -355,3 +355,62 @@ export const portConnections = mysqlTable("port_connections", {
 
 export type PortConnection = typeof portConnections.$inferSelect;
 export type InsertPortConnection = typeof portConnections.$inferInsert;
+
+// ─── Active Equipment ──────────────────────────────────────────────────────────
+// Активное оборудование: OLT, коммутаторы, медиаконвертеры, ONT, сплиттеры
+
+export const activeEquipment = mysqlTable("active_equipment", {
+  id: int("id").autoincrement().primaryKey(),
+  regionId: int("region_id").notNull(),
+  mapPointId: int("map_point_id"),                   // Привязка к точке на карте
+  name: varchar("name", { length: 255 }).notNull(),
+  equipType: mysqlEnum("equip_type", [
+    "OLT", "switch", "media_converter", "ONT", "splitter", "amplifier", "other"
+  ]).notNull().default("other"),
+  vendor: varchar("vendor", { length: 100 }),        // Производитель
+  model: varchar("model", { length: 100 }),          // Модель
+  serialNumber: varchar("serial_number", { length: 100 }),
+  ipAddress: varchar("ip_address", { length: 45 }),  // IPv4/IPv6
+  portCount: int("port_count"),                      // Количество портов
+  status: mysqlEnum("status", ["active", "inactive", "planned", "faulty"]).default("planned"),
+  notes: text("notes"),
+  createdBy: int("created_by"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ActiveEquipment = typeof activeEquipment.$inferSelect;
+export type InsertActiveEquipment = typeof activeEquipment.$inferInsert;
+
+// Порты активного оборудования (PON-порты OLT, порты коммутатора и т.д.)
+export const equipPorts = mysqlTable("equip_ports", {
+  id: int("id").autoincrement().primaryKey(),
+  equipId: int("equip_id").notNull(),
+  portName: varchar("port_name", { length: 50 }).notNull(), // Например "PON 0/0/1"
+  portType: mysqlEnum("port_type", ["PON", "GE", "FE", "SFP", "GPON", "XGPON", "other"]).default("other"),
+  cableId: int("cable_id"),                          // Подключённый кабель
+  moduleNumber: int("module_number"),
+  fiberNumber: int("fiber_number"),
+  status: mysqlEnum("status", ["free", "used", "reserved", "faulty"]).default("free"),
+  notes: varchar("notes", { length: 255 }),
+});
+export type EquipPort = typeof equipPorts.$inferSelect;
+export type InsertEquipPort = typeof equipPorts.$inferInsert;
+
+// Сплиттеры (могут быть как самостоятельным оборудованием, так и внутри кросса)
+export const splitters = mysqlTable("splitters", {
+  id: int("id").autoincrement().primaryKey(),
+  regionId: int("region_id").notNull(),
+  mapPointId: int("map_point_id"),
+  crossId: int("cross_id"),                          // Если внутри кросса
+  name: varchar("name", { length: 255 }).notNull(),
+  splitRatio: mysqlEnum("split_ratio", ["1:2", "1:4", "1:8", "1:16", "1:32", "1:64", "1:128"]).notNull().default("1:8"),
+  inputCableId: int("input_cable_id"),
+  inputModule: int("input_module"),
+  inputFiber: int("input_fiber"),
+  status: mysqlEnum("status", ["active", "inactive", "planned", "faulty"]).default("planned"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Splitter = typeof splitters.$inferSelect;
+export type InsertSplitter = typeof splitters.$inferInsert;

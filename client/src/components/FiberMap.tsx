@@ -35,6 +35,8 @@ interface FiberMapProps {
   onObjectSelect: (type: string, id: number) => void;
   onObjectCreate: (type: string, data: unknown) => void;
   refreshTrigger?: number;
+  /** Координаты маршрута трассировки волокна */
+  traceCoords?: Array<{ lat: number; lng: number; label: string }>;
 }
 
 // ─── Marker config ────────────────────────────────────────────────────────────
@@ -96,6 +98,7 @@ export default function FiberMap({
   onObjectSelect,
   onObjectCreate,
   refreshTrigger,
+  traceCoords,
 }: FiberMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -107,6 +110,7 @@ export default function FiberMap({
   } | null>(null);
   const activeToolRef = useRef<MapTool>(activeTool);
   const cableDrawRef = useRef<{ points: L.LatLng[]; polyline: L.Polyline | null }>({ points: [], polyline: null });
+  const traceLayerRef = useRef<L.LayerGroup | null>(null);
   const buildingDrawRef = useRef<{ points: L.LatLng[]; polygon: L.Polygon | null }>({ points: [], polygon: null });
   const [bounds, setBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null);
 
@@ -330,6 +334,52 @@ export default function FiberMap({
       } catch {}
     }
   }, [cablesData, layerVisibility]);
+
+  // ─── Trace polyline ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Удаляем старый слой
+    if (traceLayerRef.current) {
+      traceLayerRef.current.clearLayers();
+    } else {
+      traceLayerRef.current = L.layerGroup().addTo(map);
+    }
+
+    if (!traceCoords || traceCoords.length === 0) return;
+
+    const layer = traceLayerRef.current;
+    const latlngs = traceCoords.map((c) => [c.lat, c.lng] as [number, number]);
+
+    // Линия маршрута
+    L.polyline(latlngs, {
+      color: "#f97316",
+      weight: 4,
+      opacity: 0.9,
+      dashArray: undefined,
+    }).addTo(layer);
+
+    // Маркеры муфт
+    traceCoords.forEach((c) => {
+      L.circleMarker([c.lat, c.lng], {
+        radius: 7,
+        color: "#f97316",
+        fillColor: "#fff",
+        fillOpacity: 1,
+        weight: 2,
+      })
+        .bindTooltip(c.label, { direction: "top", offset: [0, -8] })
+        .addTo(layer);
+    });
+
+    // Центрируем карту по маршруту
+    if (latlngs.length > 1) {
+      map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] });
+    } else if (latlngs.length === 1) {
+      map.setView(latlngs[0], 15);
+    }
+  }, [traceCoords]);
 
   // ─── Cable drawing ─────────────────────────────────────────────────────────
 

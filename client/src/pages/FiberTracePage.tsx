@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Search, ArrowRight, AlertCircle, MapPin } from "lucide-react";
+import { ArrowLeft, Search, ArrowRight, AlertCircle, MapPin, Map as MapIcon } from "lucide-react";
 
 type TraceInput = {
   cableId: number;
@@ -68,6 +68,20 @@ export default function FiberTracePage() {
     return sum + (isNaN(l) ? 0 : l);
   }, 0);
 
+  // Координаты муфт для подсветки на карте
+  const traceCoords = hops
+    .filter(h => h.lat && h.lng)
+    .map(h => ({
+      lat: parseFloat(h.lat!),
+      lng: parseFloat(h.lng!),
+      label: h.closureName ?? `Муфта #${h.closureId}`,
+    }));
+
+  function showOnMap() {
+    sessionStorage.setItem("fiberTraceCoords", JSON.stringify(traceCoords));
+    navigate("/");
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -76,12 +90,17 @@ export default function FiberTracePage() {
           <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
             <ArrowLeft className="w-4 h-4 mr-1" /> Карта
           </Button>
-          <div>
+            <div className="flex-1">
             <h1 className="text-xl font-semibold">Трассировка волокна</h1>
             <p className="text-sm text-muted-foreground">
               Выберите кабель, модуль и волокно — система найдёт маршрут через все сварки
             </p>
           </div>
+          {traceCoords.length > 0 && (
+            <Button size="sm" variant="outline" className="gap-1" onClick={showOnMap}>
+              <MapIcon className="w-4 h-4" /> Показать на карте
+            </Button>
+          )}
         </div>
       </div>
 

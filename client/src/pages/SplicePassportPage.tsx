@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Trash2, Edit2, Save, X, GitMerge, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Save, X, GitMerge, Settings, Download } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 
@@ -194,11 +194,23 @@ export default function SplicePassportPage() {
             </Badge>
           )}
         </div>
-        {canEdit && closure && (
-          <Button size="sm" variant="outline" className="ml-auto gap-1" onClick={openEditClosure}>
-            <Settings className="w-4 h-4" /> Параметры
-          </Button>
-        )}
+        <div className="ml-auto flex gap-2">
+          {closure && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() => window.print()}
+            >
+              <Download className="w-4 h-4" /> PDF
+            </Button>
+          )}
+          {canEdit && closure && (
+            <Button size="sm" variant="outline" className="gap-1" onClick={openEditClosure}>
+              <Settings className="w-4 h-4" /> Параметры
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="max-w-5xl mx-auto p-4 space-y-4">

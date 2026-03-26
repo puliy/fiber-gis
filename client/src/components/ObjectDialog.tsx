@@ -10,21 +10,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, History, MapPin, Cable, X, FileText, Network } from "lucide-react";
+import { Pencil, Trash2, History, MapPin, Cable, X, FileText, Network, Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { getTypeLabel, getStatusLabel, getLayingLabel } from "./FiberMap";
 
-// Кнопка открытия оптического кросса — если кросс есть, открывает его; если нет — предлагает создать
+// Кнопка открытия оптического кросса — если кросс есть, открывает его; если нет — показывает диалог создания
 function OpticalCrossButton({ mapPointId, onClose, navigate }: { mapPointId: number | null; onClose: () => void; navigate: (path: string) => void }) {
   const { data: crosses = [], isLoading } = trpc.opticalCross.byMapPoint.useQuery(
     { mapPointId: mapPointId! },
     { enabled: !!mapPointId }
   );
-  const utils = trpc.useUtils();
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [crossForm, setCrossForm] = useState<{ name: string; portCount: string; crossType: "ODF" | "ШКОС" | "МОКС" | "other" }>({ name: "", portCount: "24", crossType: "ODF" });
+
   const upsert = trpc.opticalCross.upsert.useMutation({
     onSuccess: (id) => {
+      setShowCreateDialog(false);
       onClose();
       navigate(`/cross/${id}`);
     },
@@ -47,22 +50,80 @@ function OpticalCrossButton({ mapPointId, onClose, navigate }: { mapPointId: num
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="border-cyan-600/50 text-cyan-500/70 hover:bg-cyan-600/10"
-      disabled={upsert.isPending}
-      onClick={() => {
-        if (!mapPointId) return;
-        upsert.mutate({
-          mapPointId,
-          name: `ОКС-${mapPointId}`,
-          portCount: 24,
-        });
-      }}
-    >
-      <Network className="w-3 h-3 mr-1" /> Создать кросс
-    </Button>
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-cyan-600/50 text-cyan-500/70 hover:bg-cyan-600/10"
+        onClick={() => {
+          if (!mapPointId) return;
+          setCrossForm({ name: `ОКС-${mapPointId}`, portCount: "24", crossType: "ODF" });
+          setShowCreateDialog(true);
+        }}
+      >
+        <Plus className="w-3 h-3 mr-1" /> Создать кросс
+      </Button>
+
+      {/* Диалог создания кросса */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Создать оптический кросс</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="mb-1.5 block">Название</Label>
+              <Input
+                value={crossForm.name}
+                onChange={e => setCrossForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="например ОКС-1"
+              />
+            </div>
+            <div>
+              <Label className="mb-1.5 block">Тип кросса</Label>
+              <Select value={crossForm.crossType} onValueChange={v => setCrossForm(f => ({ ...f, crossType: v as "ODF" | "ШКОС" | "МОКС" | "other" }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ODF">ОПЦ (ODF)</SelectItem>
+                  <SelectItem value="ШКОС">ШКОС (шкаф кроссовой оптический)</SelectItem>
+                  <SelectItem value="МОКС">МОКС (мини-ОКС)</SelectItem>
+                  <SelectItem value="other">Другое</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1.5 block">Количество портов</Label>
+              <Select value={crossForm.portCount} onValueChange={v => setCrossForm(f => ({ ...f, portCount: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[8, 12, 16, 24, 32, 48, 64, 96, 128].map(n => (
+                    <SelectItem key={n} value={String(n)}>{n} портов</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(false)}>Отмена</Button>
+            <Button
+              size="sm"
+              disabled={upsert.isPending || !crossForm.name.trim()}
+              onClick={() => {
+                if (!mapPointId) return;
+                upsert.mutate({
+                  mapPointId,
+                  name: crossForm.name.trim(),
+                  portCount: parseInt(crossForm.portCount),
+                  crossType: crossForm.crossType,
+                });
+              }}
+            >
+              {upsert.isPending ? "Создание..." : "Создать"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

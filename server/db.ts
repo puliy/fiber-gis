@@ -32,6 +32,15 @@ import {
   InsertCrossPort,
   PortConnection,
   InsertPortConnection,
+  activeEquipment,
+  equipPorts,
+  splitters,
+  ActiveEquipment,
+  InsertActiveEquipment,
+  EquipPort,
+  InsertEquipPort,
+  Splitter,
+  InsertSplitter,
   mapPoints,
   publicMapTokens,
   regions,
@@ -794,6 +803,8 @@ export type TraceHop = {
   closureId: number;
   closureName: string | null;
   mapPointId: number;
+  lat: string | null;
+  lng: string | null;
   cableAId: number | null;
   moduleANumber: number | null;
   fiberANumber: number | null;
@@ -860,10 +871,24 @@ export async function traceFiber(
       .limit(1);
     const closure = closures[0];
 
+    // Получаем координаты точки на карте
+    let pointLat: string | null = null;
+    let pointLng: string | null = null;
+    if (closure?.mapPointId) {
+      const pts = await db
+        .select({ lat: mapPoints.lat, lng: mapPoints.lng })
+        .from(mapPoints)
+        .where(eq(mapPoints.id, closure.mapPointId))
+        .limit(1);
+      if (pts[0]) { pointLat = pts[0].lat; pointLng = pts[0].lng; }
+    }
+
     hops.push({
       closureId: splice.closureId,
       closureName: closure?.name ?? null,
       mapPointId: closure?.mapPointId ?? 0,
+      lat: pointLat,
+      lng: pointLng,
       cableAId: splice.cableAId,
       moduleANumber: splice.moduleANumber,
       fiberANumber: splice.fiberANumber,
@@ -891,4 +916,91 @@ export async function traceFiber(
   }
 
   return hops;
+}
+
+// ─── Active Equipment ──────────────────────────────────────────────────────────
+
+export async function getEquipmentByRegion(regionId: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(activeEquipment).where(eq(activeEquipment.regionId, regionId)).orderBy(activeEquipment.name);
+}
+
+export async function getEquipmentByMapPoint(mapPointId: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(activeEquipment).where(eq(activeEquipment.mapPointId, mapPointId));
+}
+
+export async function getEquipmentById(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  const rows = await db.select().from(activeEquipment).where(eq(activeEquipment.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertEquipment(data: InsertActiveEquipment & { id?: number }) {
+  const db = await getDb(); if (!db) return null as any;
+  if (data.id) {
+    await db.update(activeEquipment).set({ ...data, updatedAt: new Date() }).where(eq(activeEquipment.id, data.id));
+    return data.id;
+  }
+  const [result] = await db.insert(activeEquipment).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteEquipment(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  await db.delete(equipPorts).where(eq(equipPorts.equipId, id));
+  await db.delete(activeEquipment).where(eq(activeEquipment.id, id));
+}
+
+export async function getEquipPorts(equipId: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(equipPorts).where(eq(equipPorts.equipId, equipId)).orderBy(equipPorts.portName);
+}
+
+export async function upsertEquipPort(data: InsertEquipPort & { id?: number }) {
+  const db = await getDb(); if (!db) return null as any;
+  if (data.id) {
+    await db.update(equipPorts).set(data).where(eq(equipPorts.id, data.id));
+    return data.id;
+  }
+  const [result] = await db.insert(equipPorts).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteEquipPort(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  await db.delete(equipPorts).where(eq(equipPorts.id, id));
+}
+
+// ─── Splitters ─────────────────────────────────────────────────────────────────
+
+export async function getSplittersByRegion(regionId: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(splitters).where(eq(splitters.regionId, regionId)).orderBy(splitters.name);
+}
+
+export async function getSplittersByMapPoint(mapPointId: number) {
+  const db = await getDb(); if (!db) return null as any;
+  return db.select().from(splitters).where(eq(splitters.mapPointId, mapPointId));
+}
+
+export async function getSplitterById(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  const rows = await db.select().from(splitters).where(eq(splitters.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertSplitter(data: InsertSplitter & { id?: number }) {
+  const db = await getDb(); if (!db) return null as any;
+  if (data.id) {
+    await db.update(splitters).set({ ...data, updatedAt: new Date() }).where(eq(splitters.id, data.id));
+    return data.id;
+  }
+  const [result] = await db.insert(splitters).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteSplitter(id: number) {
+  const db = await getDb(); if (!db) return null as any;
+  await db.delete(splitters).where(eq(splitters.id, id));
 }

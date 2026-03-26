@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Plus, Pencil, Trash2, Link2, Unlink } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Link2, Unlink, Download } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -262,11 +262,16 @@ export default function OpticalCrossPage() {
               {cross.model && <span>/ {cross.model}</span>}
             </div>
           </div>
-          {canEdit && (
-            <Button size="sm" onClick={() => openPortDialog()}>
-              <Plus className="w-4 h-4 mr-1" /> Добавить порт
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => window.print()}>
+              <Download className="w-4 h-4 mr-1" /> PDF
             </Button>
-          )}
+            {canEdit && (
+              <Button size="sm" onClick={() => openPortDialog()}>
+                <Plus className="w-4 h-4 mr-1" /> Добавить порт
+              </Button>
+            )}
+          </div>
         </div>
         {cross.description && (
           <p className="mt-2 text-sm text-muted-foreground">{cross.description}</p>

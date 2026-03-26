@@ -22,7 +22,7 @@ import {
 import {
   ChevronDown, Menu, LogOut, User, Settings, Map,
   Activity, Shield, Search, X, MousePointer2, GitBranch,
-  Network, Cable, Building2,
+  Network, Cable, Building2, Server, FileDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -70,10 +70,24 @@ export default function MapPage() {
   const [createData, setCreateData] = useState<CreateData | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Маршрут трассировки волокна (передаётся через sessionStorage с FiberTracePage)
+  const [traceCoords, setTraceCoords] = useState<Array<{ lat: number; lng: number; label: string }> | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Читаем координаты трассировки из sessionStorage при загрузке
+  useEffect(() => {
+    const raw = sessionStorage.getItem("fiberTraceCoords");
+    if (raw) {
+      try {
+        const coords = JSON.parse(raw);
+        setTraceCoords(coords);
+        sessionStorage.removeItem("fiberTraceCoords");
+      } catch {}
+    }
+  }, []);
 
   const { data: regions } = trpc.regions.list.useQuery();
   const selectedRegion = regions?.find((r) => r.id === selectedRegionId);
@@ -287,6 +301,18 @@ export default function MapPage() {
               <DropdownMenuItem onClick={() => navigate("/trace")} className="text-xs gap-2">
                 <GitBranch className="w-3.5 h-3.5" /> Трассировка волокна
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { if (selectedRegionId) sessionStorage.setItem("currentRegionId", String(selectedRegionId)); navigate("/equipment"); }} className="text-xs gap-2">
+                <Server className="w-3.5 h-3.5" /> Активное оборудование
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const rid = selectedRegionId ?? 1;
+                  window.open(`/api/reports/infrastructure/${rid}`, "_blank");
+                }}
+                className="text-xs gap-2"
+              >
+                <FileDown className="w-3.5 h-3.5" /> Скачать отчёт Excel
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-xs gap-2 text-destructive">
                 <LogOut className="w-3.5 h-3.5" /> Выйти
@@ -375,6 +401,7 @@ export default function MapPage() {
             onObjectSelect={handleObjectSelect}
             onObjectCreate={handleObjectCreate}
             refreshTrigger={refreshTrigger}
+            traceCoords={traceCoords}
           />
 
           {/* Active tool hint */}

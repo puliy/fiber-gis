@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { generateInfrastructureReport } from "../reports";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,6 +36,23 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // Reports — Excel download endpoints
+  app.get("/api/reports/infrastructure/:regionId", async (req, res) => {
+    try {
+      const regionId = parseInt(req.params.regionId, 10);
+      if (isNaN(regionId)) return res.status(400).json({ error: "Invalid regionId" });
+      const buffer = await generateInfrastructureReport(regionId);
+      const filename = `FiberGIS_Infrastructure_Region${regionId}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } catch (e: any) {
+      console.error("Report generation error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

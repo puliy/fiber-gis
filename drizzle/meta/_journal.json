@@ -29,6 +29,13 @@
       "when": 1774560150875,
       "tag": "0003_pretty_santa_claus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1774561886929,
+      "tag": "0004_yellow_swordsman",
+      "breakpoints": true
     }
   ]
 }

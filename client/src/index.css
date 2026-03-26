@@ -264,3 +264,15 @@
 @media (max-width: 768px) {
   .leaflet-control-zoom { display: none; }
 }
+
+/* ─── Print styles for passport pages ────────────────────────────────────── */
+@media print {
+  header button, .no-print, [data-radix-popper-content-wrapper] { display: none !important; }
+  body, .bg-background, .bg-card { background: white !important; color: black !important; }
+  .border-border, .border { border-color: #ccc !important; }
+  .text-muted-foreground { color: #555 !important; }
+  table, th, td { border: 1px solid #ccc !important; }
+  .max-w-5xl { max-width: 100% !important; }
+  .page-break-before { page-break-before: always; }
+  .page-break-avoid  { page-break-inside: avoid; }
+}

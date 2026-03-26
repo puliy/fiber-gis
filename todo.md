@@ -83,4 +83,26 @@
 ## Этап 3 — Трассировка волокна
 - [x] Выбор кабель → модуль → волокно в UI (FiberTracePage)
 - [x] Поиск маршрута волокна через сварки (traceFiber BFS)
-- [ ] Подсветка маршрута на карте (следующий этап)
+- [x] Подсветка маршрута на карте (traceCoords через sessionStorage в FiberMap)
+
+## Финальный этап — "Сделать всё до конца"
+
+### Экспорт PDF
+- [x] Кнопка "Скачать PDF" на странице паспорта муфты (/splice/:id) — window.print()
+- [x] Кнопка "Скачать PDF" на странице кросса (/cross/:id) — window.print()
+
+### Подсветка маршрута на карте
+- [x] После трассировки — передача traceCoords через sessionStorage в FiberMap, полилиния Leaflet
+
+### Диалог создания кросса
+- [x] Диалог с выбором количества портов и типа (ODF/МОКС/ШКОС) в ObjectDialog
+
+### Активное оборудование
+- [x] БД: таблицы active_equipment + equip_ports + splitters
+- [x] tRPC: activeEquipment CRUD + splitters CRUD
+- [x] UI: страница EquipmentPage (/equipment) — оборудование и сплиттеры по региону
+- [x] Карта: пункт "Активное оборудование" в меню MapPage
+
+### Сводные отчёты
+- [x] Экспорт инфраструктуры по региону в Excel (/api/reports/infrastructure/:regionId) — 5 листов
+- [x] Кнопка "Скачать отчёт Excel" в меню MapPage

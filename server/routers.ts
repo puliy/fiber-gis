@@ -62,6 +62,19 @@ import {
   upsertPortConnection,
   deletePortConnection,
   traceFiber,
+  getEquipmentByRegion,
+  getEquipmentByMapPoint,
+  getEquipmentById,
+  upsertEquipment,
+  deleteEquipment,
+  getEquipPorts,
+  upsertEquipPort,
+  deleteEquipPort,
+  getSplittersByRegion,
+  getSplittersByMapPoint,
+  getSplitterById,
+  upsertSplitter,
+  deleteSplitter,
 } from "./db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -637,6 +650,97 @@ const fiberTraceRouter = router({
     .query(({ input }) => traceFiber(input.cableId, input.moduleNumber, input.fiberNumber)),
 });
 
+const activeEquipmentRouter = router({
+  byRegion: publicProcedure
+    .input(z.object({ regionId: z.number().int().positive() }))
+    .query(({ input }) => getEquipmentByRegion(input.regionId)),
+
+  byMapPoint: publicProcedure
+    .input(z.object({ mapPointId: z.number().int().positive() }))
+    .query(({ input }) => getEquipmentByMapPoint(input.mapPointId)),
+
+  byId: publicProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) => getEquipmentById(input.id)),
+
+  upsert: editorProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      regionId: z.number().int().positive(),
+      mapPointId: z.number().int().positive().optional().nullable(),
+      name: z.string().min(1).max(255),
+      equipType: z.enum(["OLT", "switch", "media_converter", "ONT", "splitter", "amplifier", "other"]).optional(),
+      vendor: z.string().max(100).optional().nullable(),
+      model: z.string().max(100).optional().nullable(),
+      serialNumber: z.string().max(100).optional().nullable(),
+      ipAddress: z.string().max(45).optional().nullable(),
+      portCount: z.number().int().min(1).optional().nullable(),
+      status: z.enum(["active", "inactive", "planned", "faulty"]).optional(),
+      notes: z.string().optional().nullable(),
+    }))
+    .mutation(({ input, ctx }) => upsertEquipment({ ...input, createdBy: ctx.user.id })),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteEquipment(input.id)),
+
+  ports: publicProcedure
+    .input(z.object({ equipId: z.number().int().positive() }))
+    .query(({ input }) => getEquipPorts(input.equipId)),
+
+  upsertPort: editorProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      equipId: z.number().int().positive(),
+      portName: z.string().min(1).max(50),
+      portType: z.enum(["PON", "GE", "FE", "SFP", "GPON", "XGPON", "other"]).optional(),
+      cableId: z.number().int().positive().optional().nullable(),
+      moduleNumber: z.number().int().min(1).optional().nullable(),
+      fiberNumber: z.number().int().min(1).optional().nullable(),
+      status: z.enum(["free", "used", "reserved", "faulty"]).optional(),
+      notes: z.string().max(255).optional().nullable(),
+    }))
+    .mutation(({ input }) => upsertEquipPort(input)),
+
+  deletePort: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteEquipPort(input.id)),
+});
+
+const splittersRouter = router({
+  byRegion: publicProcedure
+    .input(z.object({ regionId: z.number().int().positive() }))
+    .query(({ input }) => getSplittersByRegion(input.regionId)),
+
+  byMapPoint: publicProcedure
+    .input(z.object({ mapPointId: z.number().int().positive() }))
+    .query(({ input }) => getSplittersByMapPoint(input.mapPointId)),
+
+  byId: publicProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) => getSplitterById(input.id)),
+
+  upsert: editorProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      regionId: z.number().int().positive(),
+      mapPointId: z.number().int().positive().optional().nullable(),
+      crossId: z.number().int().positive().optional().nullable(),
+      name: z.string().min(1).max(255),
+      splitRatio: z.enum(["1:2", "1:4", "1:8", "1:16", "1:32", "1:64", "1:128"]),
+      inputCableId: z.number().int().positive().optional().nullable(),
+      inputModule: z.number().int().min(1).optional().nullable(),
+      inputFiber: z.number().int().min(1).optional().nullable(),
+      status: z.enum(["active", "inactive", "planned", "faulty"]).optional(),
+      notes: z.string().optional().nullable(),
+    }))
+    .mutation(({ input }) => upsertSplitter(input)),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteSplitter(input.id)),
+});
+
 const adminRouter = router({
   users: adminProcedure.query(() => getAllUsers()),
   updateUserRole: adminProcedure
@@ -675,6 +779,8 @@ export const appRouter = router({
   splice: spliceRouter,
   opticalCross: opticalCrossRouter,
   fiberTrace: fiberTraceRouter,
+  equipment: activeEquipmentRouter,
+  splitters: splittersRouter,
 });
 
 export type AppRouter = typeof appRouter;
