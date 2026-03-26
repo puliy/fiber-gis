@@ -1,0 +1,16 @@
+{
+  "query": "\nSELECT * FROM audit_log ORDER BY createdAt DESC LIMIT 10;\nSELECT id, name, description, updatedAt FROM map_points WHERE id = 1;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2YT6b9uT3dRVHkX.55ab4726c7ea --database GGveEPkUK2b4ESPQoRgPRx --execute \nSELECT * FROM audit_log ORDER BY createdAt DESC LIMIT 10;\nSELECT id, name, description, updatedAt FROM map_points WHERE id = 1;\n",
+  "rows": [
+    {
+      "id": "1",
+      "name": "УМ-01 Центр",
+      "description": "Магистральный узел центра города",
+      "updatedAt": "2026-03-26 19:47:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tdescription\tupdatedAt\n1\tУМ-01 Центр\tМагистральный узел центра города\t2026-03-26 19:47:00\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

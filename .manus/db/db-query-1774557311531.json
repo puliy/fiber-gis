@@ -1,0 +1,40 @@
+{
+  "query": "\nSELECT id, table_name, object_id, operation, user_name, changed_fields, createdAt FROM audit_log ORDER BY createdAt DESC LIMIT 10;\nSELECT id, name, token, createdAt FROM public_map_tokens ORDER BY createdAt DESC LIMIT 5;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2YT6b9uT3dRVHkX.55ab4726c7ea --database GGveEPkUK2b4ESPQoRgPRx --execute \nSELECT id, table_name, object_id, operation, user_name, changed_fields, createdAt FROM audit_log ORDER BY createdAt DESC LIMIT 10;\nSELECT id, name, token, createdAt FROM public_map_tokens ORDER BY createdAt DESC LIMIT 5;\n",
+  "rows": [
+    {
+      "id": "3",
+      "table_name": "map_points",
+      "object_id": "30002",
+      "operation": "DELETE",
+      "user_name": "Юлий Пономарев",
+      "changed_fields": "NULL",
+      "createdAt": "2026-03-26 20:34:48"
+    },
+    {
+      "id": "2",
+      "table_name": "map_points",
+      "object_id": "30002",
+      "operation": "INSERT",
+      "user_name": "Юлий Пономарев",
+      "changed_fields": "NULL",
+      "createdAt": "2026-03-26 20:34:38"
+    },
+    {
+      "id": "1",
+      "table_name": "map_points",
+      "object_id": "1",
+      "operation": "UPDATE",
+      "user_name": "Юлий Пономарев",
+      "changed_fields": "[\"description\", \"attributes\"]",
+      "createdAt": "2026-03-26 20:34:20"
+    }
+  ],
+  "messages": [
+    "id\tname\ttoken\tcreatedAt",
+    "1\tТест токен\t6feKOtEz90ljC-q5W-RNdT8SlJ_FYGnh\t2026-03-26 20:35:02"
+  ],
+  "stdout": "id\ttable_name\tobject_id\toperation\tuser_name\tchanged_fields\tcreatedAt\n3\tmap_points\t30002\tDELETE\tЮлий Пономарев\tNULL\t2026-03-26 20:34:48\n2\tmap_points\t30002\tINSERT\tЮлий Пономарев\tNULL\t2026-03-26 20:34:38\n1\tmap_points\t1\tUPDATE\tЮлий Пономарев\t[\"description\", \"attributes\"]\t2026-03-26 20:34:20\nid\tname\ttoken\tcreatedAt\n1\tТест токен\t6feKOtEz90ljC-q5W-RNdT8SlJ_FYGnh\t2026-03-26 20:35:02\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}
