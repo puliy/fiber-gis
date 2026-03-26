@@ -6,11 +6,9 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package files
+# Copy package files and patches
 COPY package.json pnpm-lock.yaml ./
-
-# Copy patches if they exist
-COPY patches* ./patches/
+COPY patches ./patches
 
 # Install all dependencies (including devDeps for build)
 RUN pnpm install --no-frozen-lockfile
@@ -28,11 +26,9 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package files
+# Copy package files and patches
 COPY package.json pnpm-lock.yaml ./
-
-# Copy patches if they exist
-COPY patches* ./patches/
+COPY patches ./patches
 
 # Install production dependencies only
 RUN pnpm install --no-frozen-lockfile --prod
