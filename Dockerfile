@@ -41,7 +41,7 @@ COPY --from=builder /app/server ./server
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/shared ./shared
 # Install tsx for server runtime
-RUN pnpm add -g tsx
+RUN npm install -g tsx
 
 EXPOSE 3000
 
