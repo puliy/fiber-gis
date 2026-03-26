@@ -40,8 +40,6 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/shared ./shared
-COPY --from=builder /app/storage ./storage
-
 # Install tsx for server runtime
 RUN pnpm add -g tsx
 
