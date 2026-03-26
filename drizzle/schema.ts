@@ -1,22 +1,25 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  decimal,
+  boolean,
+  json,
+  bigint,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
+// ─── Users ────────────────────────────────────────────────────────────────────
+
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "viewer"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -25,4 +28,194 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ─── Regions ──────────────────────────────────────────────────────────────────
+
+export const regions = mysqlTable("regions", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // Center coordinates for map centering
+  centerLat: decimal("center_lat", { precision: 10, scale: 7 }).notNull(),
+  centerLng: decimal("center_lng", { precision: 10, scale: 7 }).notNull(),
+  defaultZoom: int("default_zoom").default(13).notNull(),
+  // Bounding box for region
+  bboxMinLat: decimal("bbox_min_lat", { precision: 10, scale: 7 }),
+  bboxMinLng: decimal("bbox_min_lng", { precision: 10, scale: 7 }),
+  bboxMaxLat: decimal("bbox_max_lat", { precision: 10, scale: 7 }),
+  bboxMaxLng: decimal("bbox_max_lng", { precision: 10, scale: 7 }),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Region = typeof regions.$inferSelect;
+export type InsertRegion = typeof regions.$inferInsert;
+
+// ─── Map Points (Poles, Manholes, Splice Closures, etc.) ──────────────────────
+
+export const mapPoints = mysqlTable("map_points", {
+  id: int("id").autoincrement().primaryKey(),
+  regionId: int("region_id").notNull(),
+  // Geometry stored as lat/lng decimals (PostGIS POINT via raw SQL)
+  lat: decimal("lat", { precision: 10, scale: 7 }).notNull(),
+  lng: decimal("lng", { precision: 10, scale: 7 }).notNull(),
+  type: mysqlEnum("type", [
+    "pole",          // Опора
+    "manhole",       // Колодец
+    "splice",        // Муфта в земле
+    "mast",          // Мачта
+    "entry_point",   // Точка входа в здание
+    "node_district", // Районный узел
+    "node_trunk",    // Магистральный узел
+    "flag",          // Флаг/метка
+    "camera",        // Камера
+    "other",         // Прочее
+  ]).notNull(),
+  status: mysqlEnum("status", ["plan", "fact", "dismantled"]).default("fact").notNull(),
+  name: varchar("name", { length: 255 }),
+  description: text("description"),
+  address: text("address"),
+  ownerId: int("owner_id"), // FK to owners table (future)
+  attributes: json("attributes"), // Flexible extra attributes
+  isPublic: boolean("is_public").default(false).notNull(),
+  createdBy: int("created_by"),
+  updatedBy: int("updated_by"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MapPoint = typeof mapPoints.$inferSelect;
+export type InsertMapPoint = typeof mapPoints.$inferInsert;
+
+// ─── Cable Templates ──────────────────────────────────────────────────────────
+
+export const cableTemplates = mysqlTable("cable_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  manufacturer: varchar("manufacturer", { length: 255 }),
+  fiberCount: int("fiber_count").notNull(),
+  moduleCount: int("module_count").default(1),
+  fibersPerModule: int("fibers_per_module"),
+  cableType: mysqlEnum("cable_type", ["single_mode", "multi_mode", "armored", "aerial", "duct"]).default("single_mode"),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CableTemplate = typeof cableTemplates.$inferSelect;
+
+// ─── Cables ───────────────────────────────────────────────────────────────────
+
+export const cables = mysqlTable("cables", {
+  id: int("id").autoincrement().primaryKey(),
+  regionId: int("region_id").notNull(),
+  templateId: int("template_id"),
+  name: varchar("name", { length: 255 }),
+  status: mysqlEnum("status", ["plan", "fact", "dismantled"]).default("fact").notNull(),
+  layingType: mysqlEnum("laying_type", ["aerial", "underground", "duct", "building"]).default("aerial"),
+  // Route stored as JSON array of {lat, lng} points
+  route: json("route").notNull(), // [{lat, lng}, ...]
+  // Calculated length in meters
+  lengthCalc: decimal("length_calc", { precision: 10, scale: 2 }),
+  lengthFact: decimal("length_fact", { precision: 10, scale: 2 }),
+  // Bounding box for spatial queries (denormalized for performance)
+  bboxMinLat: decimal("bbox_min_lat", { precision: 10, scale: 7 }),
+  bboxMinLng: decimal("bbox_min_lng", { precision: 10, scale: 7 }),
+  bboxMaxLat: decimal("bbox_max_lat", { precision: 10, scale: 7 }),
+  bboxMaxLng: decimal("bbox_max_lng", { precision: 10, scale: 7 }),
+  startPointId: int("start_point_id"),
+  endPointId: int("end_point_id"),
+  description: text("description"),
+  attributes: json("attributes"),
+  isPublic: boolean("is_public").default(false).notNull(),
+  createdBy: int("created_by"),
+  updatedBy: int("updated_by"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Cable = typeof cables.$inferSelect;
+export type InsertCable = typeof cables.$inferInsert;
+
+// ─── Cable Ducts (Кабельная канализация) ─────────────────────────────────────
+
+export const cableDucts = mysqlTable("cable_ducts", {
+  id: int("id").autoincrement().primaryKey(),
+  regionId: int("region_id").notNull(),
+  name: varchar("name", { length: 255 }),
+  capacity: int("capacity").default(1), // Number of tubes
+  diameter: int("diameter"), // mm
+  material: mysqlEnum("material", ["plastic", "concrete", "metal", "other"]).default("plastic"),
+  route: json("route").notNull(), // [{lat, lng}, ...]
+  bboxMinLat: decimal("bbox_min_lat", { precision: 10, scale: 7 }),
+  bboxMinLng: decimal("bbox_min_lng", { precision: 10, scale: 7 }),
+  bboxMaxLat: decimal("bbox_max_lat", { precision: 10, scale: 7 }),
+  bboxMaxLng: decimal("bbox_max_lng", { precision: 10, scale: 7 }),
+  description: text("description"),
+  createdBy: int("created_by"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CableDuct = typeof cableDucts.$inferSelect;
+
+// ─── Buildings ────────────────────────────────────────────────────────────────
+
+export const buildings = mysqlTable("buildings", {
+  id: int("id").autoincrement().primaryKey(),
+  regionId: int("region_id").notNull(),
+  name: varchar("name", { length: 255 }),
+  address: text("address"),
+  osmId: varchar("osm_id", { length: 64 }),
+  // Polygon stored as JSON array of {lat, lng} points
+  polygon: json("polygon").notNull(), // [{lat, lng}, ...]
+  // Center point for label
+  centerLat: decimal("center_lat", { precision: 10, scale: 7 }),
+  centerLng: decimal("center_lng", { precision: 10, scale: 7 }),
+  bboxMinLat: decimal("bbox_min_lat", { precision: 10, scale: 7 }),
+  bboxMinLng: decimal("bbox_min_lng", { precision: 10, scale: 7 }),
+  bboxMaxLat: decimal("bbox_max_lat", { precision: 10, scale: 7 }),
+  bboxMaxLng: decimal("bbox_max_lng", { precision: 10, scale: 7 }),
+  floors: int("floors"),
+  description: text("description"),
+  attributes: json("attributes"),
+  createdBy: int("created_by"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Building = typeof buildings.$inferSelect;
+export type InsertBuilding = typeof buildings.$inferInsert;
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+export const auditLog = mysqlTable("audit_log", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  tableName: varchar("table_name", { length: 64 }).notNull(),
+  objectId: int("object_id").notNull(),
+  operation: mysqlEnum("operation", ["INSERT", "UPDATE", "DELETE"]).notNull(),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 255 }),
+  oldData: json("old_data"),
+  newData: json("new_data"),
+  changedFields: json("changed_fields"), // Array of field names that changed
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLog.$inferSelect;
+
+// ─── Public Map Tokens ────────────────────────────────────────────────────────
+
+export const publicMapTokens = mysqlTable("public_map_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  regionId: int("region_id"), // null = all regions
+  allowedLayers: json("allowed_layers"), // ["poles", "cables", ...] null = all public
+  isActive: boolean("is_active").default(true).notNull(),
+  expiresAt: timestamp("expires_at"),
+  createdBy: int("created_by"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PublicMapToken = typeof publicMapTokens.$inferSelect;

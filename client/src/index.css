@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -43,7 +44,7 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
+  --primary: oklch(0.58 0.20 210);
   --primary-foreground: var(--color-blue-50);
   --sidebar-primary: var(--color-blue-600);
   --sidebar-primary-foreground: var(--color-blue-50);
@@ -53,31 +54,41 @@
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+  /* Dark GIS professional theme */
+  --background: oklch(0.14 0.01 240);
+  --foreground: oklch(0.92 0.01 240);
+  --card: oklch(0.18 0.01 240);
+  --card-foreground: oklch(0.92 0.01 240);
+  --popover: oklch(0.18 0.01 240);
+  --popover-foreground: oklch(0.92 0.01 240);
+  --secondary: oklch(0.22 0.01 240);
+  --secondary-foreground: oklch(0.85 0.01 240);
+  --muted: oklch(0.22 0.01 240);
+  --muted-foreground: oklch(0.60 0.01 240);
+  --accent: oklch(0.25 0.02 240);
+  --accent-foreground: oklch(0.92 0.01 240);
+  --destructive: oklch(0.60 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.28 0.01 240);
+  --input: oklch(0.22 0.01 240);
+  --ring: oklch(0.58 0.20 210);
+  --sidebar: oklch(0.11 0.01 240);
+  --sidebar-foreground: oklch(0.85 0.01 240);
+  --sidebar-accent: oklch(0.20 0.01 240);
+  --sidebar-accent-foreground: oklch(0.92 0.01 240);
+  --sidebar-border: oklch(0.22 0.01 240);
+  --sidebar-ring: oklch(0.58 0.20 210);
+  --primary-foreground: oklch(0.98 0.005 240);
+  --sidebar-primary: oklch(0.58 0.20 210);
+  --sidebar-primary-foreground: oklch(0.98 0.005 240);
+  --chart-1: oklch(0.65 0.18 210);
+  --chart-2: oklch(0.65 0.18 150);
+  --chart-3: oklch(0.65 0.18 60);
+  --chart-4: oklch(0.65 0.18 300);
+  --chart-5: oklch(0.65 0.18 30);
 }
 
+/* Keep dark class for compatibility */
 .dark {
   --primary: var(--color-blue-700);
   --primary-foreground: var(--color-blue-50);
@@ -119,6 +130,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -174,4 +186,81 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+}
+/* ─── Leaflet dark theme overrides ─────────────────────────────────────────── */
+.leaflet-container {
+  background: #1a2332;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.leaflet-control-zoom a {
+  background-color: oklch(0.18 0.01 240) !important;
+  color: oklch(0.85 0.01 240) !important;
+  border-color: oklch(0.28 0.01 240) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: oklch(0.25 0.02 240) !important;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(20, 25, 35, 0.85) !important;
+  color: oklch(0.55 0.01 240) !important;
+  font-size: 10px !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: oklch(0.18 0.01 240);
+  color: oklch(0.92 0.01 240);
+  border: 1px solid oklch(0.28 0.01 240);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  padding: 0;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  width: auto !important;
+}
+
+.leaflet-popup-tip {
+  background-color: oklch(0.18 0.01 240);
+}
+
+.leaflet-popup-close-button {
+  color: oklch(0.60 0.01 240) !important;
+  top: 8px !important;
+  right: 8px !important;
+}
+
+/* ─── Custom map marker icons ────────────────────────────────────────────── */
+.fiber-marker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.6);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fiber-marker-icon:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: oklch(0.14 0.01 240); }
+::-webkit-scrollbar-thumb { background: oklch(0.30 0.01 240); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.38 0.01 240); }
+
+/* ─── Mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .leaflet-control-zoom { display: none; }
 }

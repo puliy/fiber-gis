@@ -1,28 +1,461 @@
+import { TRPCError } from "@trpc/server";
+import { nanoid } from "nanoid";
+import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import {
+  createBuilding,
+  createCable,
+  createMapPoint,
+  createPublicToken,
+  createRegion,
+  deleteBuilding,
+  deleteCable,
+  deleteMapPoint,
+  deletePublicToken,
+  getAuditLog,
+  getBuildingById,
+  getBuildingsInBounds,
+  getCableById,
+  getCablesInBounds,
+  createCableTemplate,
+  getCableTemplates,
+  getMapPointById,
+  getMapPointsInBounds,
+  getPublicTokens,
+  getRecentAuditLog,
+  getRegionById,
+  getRegions,
+  getAllUsers,
+  updateBuilding,
+  updateCable,
+  updateMapPoint,
+  updateRegion,
+  updateUserRole,
+  validatePublicToken,
+  searchMapPoints,
+} from "./db";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+  }
+  return next({ ctx });
+});
+
+const editorProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role === "viewer") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Edit access required" });
+  }
+  return next({ ctx });
+});
+
+// Bounding box input schema
+const boundsInput = z.object({
+  regionId: z.number().int().positive(),
+  minLat: z.number(),
+  minLng: z.number(),
+  maxLat: z.number(),
+  maxLng: z.number(),
+});
+
+// ─── Routers ──────────────────────────────────────────────────────────────────
+
+const regionsRouter = router({
+  list: publicProcedure.query(async () => getRegions()),
+
+  byId: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) =>
+    getRegionById(input.id)
+  ),
+
+  create: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        centerLat: z.number(),
+        centerLng: z.number(),
+        defaultZoom: z.number().int().min(1).max(20).default(13),
+        bboxMinLat: z.number().optional(),
+        bboxMinLng: z.number().optional(),
+        bboxMaxLat: z.number().optional(),
+        bboxMaxLng: z.number().optional(),
+      })
+    )
+    .mutation(({ input }) =>
+      createRegion({
+        ...input,
+        centerLat: String(input.centerLat),
+        centerLng: String(input.centerLng),
+        bboxMinLat: input.bboxMinLat !== undefined ? String(input.bboxMinLat) : undefined,
+        bboxMinLng: input.bboxMinLng !== undefined ? String(input.bboxMinLng) : undefined,
+        bboxMaxLat: input.bboxMaxLat !== undefined ? String(input.bboxMaxLat) : undefined,
+        bboxMaxLng: input.bboxMaxLng !== undefined ? String(input.bboxMaxLng) : undefined,
+      })
+    ),
+
+  update: adminProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        centerLat: z.number().optional(),
+        centerLng: z.number().optional(),
+        defaultZoom: z.number().int().optional(),
+        isActive: z.boolean().optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const { id, centerLat, centerLng, ...rest } = input;
+      return updateRegion(id, {
+        ...rest,
+        ...(centerLat !== undefined ? { centerLat: String(centerLat) } : {}),
+        ...(centerLng !== undefined ? { centerLng: String(centerLng) } : {}),
+      });
+    }),
+});
+
+const mapPointsRouter = router({
+  inBounds: protectedProcedure.input(boundsInput).query(({ input }) =>
+    getMapPointsInBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng)
+  ),
+
+  byId: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) =>
+    getMapPointById(input.id)
+  ),
+
+  create: editorProcedure
+    .input(
+      z.object({
+        regionId: z.number().int().positive(),
+        lat: z.number(),
+        lng: z.number(),
+        type: z.enum(["pole", "manhole", "splice", "mast", "entry_point", "node_district", "node_trunk", "flag", "camera", "other"]),
+        status: z.enum(["plan", "fact", "dismantled"]).default("fact"),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        address: z.string().optional(),
+        attributes: z.record(z.string(), z.unknown()).optional(),
+        isPublic: z.boolean().default(false),
+      })
+    )
+    .mutation(({ input, ctx }) =>
+      createMapPoint(
+        { ...input, lat: String(input.lat), lng: String(input.lng), attributes: input.attributes as any },
+        ctx.user.id,
+        ctx.user.name ?? "Unknown"
+      )
+    ),
+
+  update: editorProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        lat: z.number().optional(),
+        lng: z.number().optional(),
+        type: z.enum(["pole", "manhole", "splice", "mast", "entry_point", "node_district", "node_trunk", "flag", "camera", "other"]).optional(),
+        status: z.enum(["plan", "fact", "dismantled"]).optional(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        address: z.string().optional(),
+        attributes: z.record(z.string(), z.unknown()).optional(),
+        isPublic: z.boolean().optional(),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      const { id, lat, lng, ...rest } = input;
+      return updateMapPoint(
+        id,
+        {
+          ...rest,
+          ...(lat !== undefined ? { lat: String(lat) } : {}),
+          ...(lng !== undefined ? { lng: String(lng) } : {}),
+          attributes: rest.attributes as any,
+        },
+        ctx.user.id,
+        ctx.user.name ?? "Unknown"
+      );
+    }),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input, ctx }) =>
+      deleteMapPoint(input.id, ctx.user.id, ctx.user.name ?? "Unknown")
+    ),
+  search: protectedProcedure
+    .input(z.object({ regionId: z.number(), query: z.string().min(2).max(100) }))
+    .query(({ input }) => searchMapPoints(input.regionId, input.query)),
+});
+
+const cablesRouter = router({
+  inBounds: protectedProcedure.input(boundsInput).query(({ input }) =>
+    getCablesInBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng)
+  ),
+
+  byId: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) =>
+    getCableById(input.id)
+  ),
+
+  templates: protectedProcedure.query(async () => getCableTemplates()),
+
+  create: editorProcedure
+    .input(
+      z.object({
+        regionId: z.number().int().positive(),
+        templateId: z.number().optional(),
+        name: z.string().optional(),
+        status: z.enum(["plan", "fact", "dismantled"]).default("fact"),
+        layingType: z.enum(["aerial", "underground", "duct", "building"]).default("aerial"),
+        route: z.array(z.object({ lat: z.number(), lng: z.number() })).min(2),
+        lengthFact: z.number().optional(),
+        description: z.string().optional(),
+        isPublic: z.boolean().default(false),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      const lats = input.route.map((p) => p.lat);
+      const lngs = input.route.map((p) => p.lng);
+      // Calculate length using Haversine
+      let lengthCalc = 0;
+      for (let i = 1; i < input.route.length; i++) {
+        lengthCalc += haversine(input.route[i - 1], input.route[i]);
+      }
+      return createCable(
+        {
+          ...input,
+          route: input.route as any,
+          lengthCalc: String(Math.round(lengthCalc)),
+          lengthFact: input.lengthFact !== undefined ? String(input.lengthFact) : undefined,
+          bboxMinLat: String(Math.min(...lats)),
+          bboxMinLng: String(Math.min(...lngs)),
+          bboxMaxLat: String(Math.max(...lats)),
+          bboxMaxLng: String(Math.max(...lngs)),
+        },
+        ctx.user.id,
+        ctx.user.name ?? "Unknown"
+      );
+    }),
+
+  update: editorProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        status: z.enum(["plan", "fact", "dismantled"]).optional(),
+        layingType: z.enum(["aerial", "underground", "duct", "building"]).optional(),
+        route: z.array(z.object({ lat: z.number(), lng: z.number() })).min(2).optional(),
+        lengthFact: z.number().optional(),
+        description: z.string().optional(),
+        isPublic: z.boolean().optional(),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      const { id, route, lengthFact, ...rest } = input;
+      const updates: Record<string, unknown> = { ...rest };
+      if (route) {
+        const lats = route.map((p) => p.lat);
+        const lngs = route.map((p) => p.lng);
+        let lengthCalc = 0;
+        for (let i = 1; i < route.length; i++) lengthCalc += haversine(route[i - 1], route[i]);
+        updates.route = route;
+        updates.lengthCalc = String(Math.round(lengthCalc));
+        updates.bboxMinLat = String(Math.min(...lats));
+        updates.bboxMinLng = String(Math.min(...lngs));
+        updates.bboxMaxLat = String(Math.max(...lats));
+        updates.bboxMaxLng = String(Math.max(...lngs));
+      }
+      if (lengthFact !== undefined) updates.lengthFact = String(lengthFact);
+      return updateCable(id, updates as any, ctx.user.id, ctx.user.name ?? "Unknown");
+    }),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input, ctx }) =>
+      deleteCable(input.id, ctx.user.id, ctx.user.name ?? "Unknown")
+    ),
+});
+
+const buildingsRouter = router({
+  inBounds: protectedProcedure.input(boundsInput).query(({ input }) =>
+    getBuildingsInBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng)
+  ),
+
+  byId: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) =>
+    getBuildingById(input.id)
+  ),
+
+  create: editorProcedure
+    .input(
+      z.object({
+        regionId: z.number().int().positive(),
+        name: z.string().optional(),
+        address: z.string().optional(),
+        polygon: z.array(z.object({ lat: z.number(), lng: z.number() })).min(3),
+        floors: z.number().int().optional(),
+        description: z.string().optional(),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      const lats = input.polygon.map((p) => p.lat);
+      const lngs = input.polygon.map((p) => p.lng);
+      const centerLat = lats.reduce((a, b) => a + b, 0) / lats.length;
+      const centerLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
+      return createBuilding(
+        {
+          ...input,
+          polygon: input.polygon as any,
+          centerLat: String(centerLat),
+          centerLng: String(centerLng),
+          bboxMinLat: String(Math.min(...lats)),
+          bboxMinLng: String(Math.min(...lngs)),
+          bboxMaxLat: String(Math.max(...lats)),
+          bboxMaxLng: String(Math.max(...lngs)),
+        },
+        ctx.user.id,
+        ctx.user.name ?? "Unknown"
+      );
+    }),
+
+  update: editorProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        address: z.string().optional(),
+        floors: z.number().int().optional(),
+        description: z.string().optional(),
+      })
+    )
+    .mutation(({ input, ctx }) => {
+      const { id, ...rest } = input;
+      return updateBuilding(id, rest, ctx.user.id, ctx.user.name ?? "Unknown");
+    }),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input, ctx }) =>
+      deleteBuilding(input.id, ctx.user.id, ctx.user.name ?? "Unknown")
+    ),
+});
+
+const auditRouter = router({
+  forObject: protectedProcedure
+    .input(z.object({ tableName: z.string(), objectId: z.number() }))
+    .query(({ input }) => getAuditLog(input.tableName, input.objectId)),
+
+  recent: adminProcedure
+    .input(z.object({ limit: z.number().int().max(200).default(100) }))
+    .query(({ input }) => getRecentAuditLog(input.limit)),
+});
+
+const publicMapRouter = router({
+  validate: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(({ input }) => validatePublicToken(input.token)),
+
+  mapData: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        regionId: z.number(),
+        minLat: z.number(),
+        minLng: z.number(),
+        maxLat: z.number(),
+        maxLng: z.number(),
+      })
+    )
+    .query(async ({ input }) => {
+      const tokenData = await validatePublicToken(input.token);
+      if (!tokenData) throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired token" });
+      if (tokenData.regionId && tokenData.regionId !== input.regionId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Token not valid for this region" });
+      }
+      const [points, cableList] = await Promise.all([
+        getMapPointsInBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng),
+        getCablesInBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng),
+      ]);
+      return {
+        points: points.filter((p) => p.isPublic),
+        cables: cableList.filter((c) => c.isPublic),
+        region: await getRegionById(input.regionId),
+      };
+    }),
+
+  tokens: adminProcedure.query(() => getPublicTokens()),
+
+  createToken: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        regionId: z.number().optional(),
+        allowedLayers: z.array(z.string()).optional(),
+        expiresAt: z.date().optional(),
+      })
+    )
+    .mutation(({ input, ctx }) =>
+      createPublicToken({
+        ...input,
+        token: nanoid(32),
+        allowedLayers: input.allowedLayers as any,
+        createdBy: ctx.user.id,
+      })
+    ),
+
+   deleteToken: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input }) => deletePublicToken(input.id)),
+});
+
+const adminRouter = router({
+  users: adminProcedure.query(() => getAllUsers()),
+  updateUserRole: adminProcedure
+    .input(z.object({ userId: z.number(), role: z.enum(["user", "admin", "viewer"]) }))
+    .mutation(({ input }) => updateUserRole(input.userId, input.role)),
+  createCableTemplate: adminProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      fiberCount: z.number().min(1).max(1000),
+      description: z.string().optional(),
+    }))
+    .mutation(({ input }) => createCableTemplate(input)),
+});
+
+// ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  regions: regionsRouter,
+  mapPoints: mapPointsRouter,
+  cables: cablesRouter,
+  buildings: buildingsRouter,
+  audit: auditRouter,
+  publicMap: publicMapRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+
+function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
