@@ -1,7 +1,5 @@
 #!/bin/bash
 set -e
-GH_TOKEN="ghu_ccIlTZWHWvKBwdx9hyIJf3nsQIWSvS0e3znv"
-REPO="https://${GH_TOKEN}@github.com/puliy/fiber-gis.git"
 APP_DIR="/opt/fibergis"
 DOMAIN="fibergis.ru"
 
@@ -27,47 +25,36 @@ echo "=== [3/6] Код ==="
 if [ -d "$APP_DIR/.git" ]; then
   cd "$APP_DIR" && git pull
 else
-  git clone "$REPO" "$APP_DIR"
+  git clone https://github.com/puliy/fiber-gis.git "$APP_DIR"
 fi
 cd "$APP_DIR"
 
 echo "=== [4/6] .env ==="
 cp .env.production .env
 
-echo "=== [5/6] Nginx ==="
+echo "=== [5/6] Nginx (HTTP) ==="
 mkdir -p /var/www/certbot
-cat > /etc/nginx/sites-available/fibergis << NGINXEOF
-server {
-    listen 80;
-    server_name fibergis.ru www.fibergis.ru;
-    location /.well-known/acme-challenge/ { root /var/www/certbot; }
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 300s;
-        client_max_body_size 50M;
-    }
-}
-NGINXEOF
+# Используем HTTP-only конфиг (без SSL) для первого запуска
+cp "$APP_DIR/nginx-http.conf" /etc/nginx/sites-available/fibergis
 ln -sf /etc/nginx/sites-available/fibergis /etc/nginx/sites-enabled/fibergis
 [ -f /etc/nginx/sites-enabled/default ] && unlink /etc/nginx/sites-enabled/default || true
 nginx -t && systemctl reload nginx
 
 echo "=== [6/6] Docker Compose ==="
+# Для первого запуска без SSL используем nginx-http.conf внутри контейнера
+cp "$APP_DIR/nginx-http.conf" "$APP_DIR/nginx.conf"
 docker compose down 2>/dev/null || true
 docker compose up -d --build
 
 echo ""
 echo "=== Деплой завершён! ==="
+sleep 5
 docker compose ps
 echo ""
 echo "Сайт доступен: http://$DOMAIN"
 echo ""
-echo "Для HTTPS (после распространения DNS fibergis.ru):"
+echo "Для HTTPS (после распространения DNS fibergis.ru → 188.225.84.38):"
 echo "  certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN"
+echo "  # После certbot восстановите nginx.conf с SSL:"
+echo "  cp $APP_DIR/nginx.conf.bak $APP_DIR/nginx.conf 2>/dev/null || true"
+echo "  docker compose restart nginx"
