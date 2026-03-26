@@ -294,3 +294,111 @@ describe("splice", () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── Optical Cross Tests ──────────────────────────────────────────────────────
+
+describe("opticalCross", () => {
+  it("list returns array (public)", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.opticalCross.list();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("byMapPoint returns array (public)", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.opticalCross.byMapPoint({ mapPointId: 999999 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  it("byId returns undefined for non-existent cross (public)", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.opticalCross.byId({ id: 999999 });
+    expect(result).toBeUndefined();
+  });
+
+  it("upsert requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.opticalCross.upsert({ mapPointId: 1, name: "Test ODF" })
+    ).rejects.toThrow();
+  });
+
+  it("upsert requires editor role (not viewer)", async () => {
+    const caller = appRouter.createCaller(createUserContext("viewer"));
+    await expect(
+      caller.opticalCross.upsert({ mapPointId: 1, name: "Test ODF" })
+    ).rejects.toThrow();
+  });
+
+  it("ports returns array (public)", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.opticalCross.ports({ crossId: 999999 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  it("connections returns array (public)", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.opticalCross.connections({ crossId: 999999 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  it("upsertPort requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.opticalCross.upsertPort({ crossId: 1, portNumber: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("deletePort requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.opticalCross.deletePort({ id: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("delete requires authentication", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.opticalCross.delete({ id: 1 })
+    ).rejects.toThrow();
+  });
+});
+
+// ─── Fiber Trace Tests ────────────────────────────────────────────────────────
+
+describe("fiberTrace", () => {
+  it("trace returns empty array for non-existent fiber (public)", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    const result = await caller.fiberTrace.trace({
+      cableId: 999999,
+      moduleNumber: 1,
+      fiberNumber: 1,
+    });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  it("trace validates input: cableId must be positive", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.fiberTrace.trace({ cableId: 0, moduleNumber: 1, fiberNumber: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("trace validates input: moduleNumber must be >= 1", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.fiberTrace.trace({ cableId: 1, moduleNumber: 0, fiberNumber: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("trace validates input: fiberNumber must be >= 1", async () => {
+    const caller = appRouter.createCaller(createAnonContext());
+    await expect(
+      caller.fiberTrace.trace({ cableId: 1, moduleNumber: 1, fiberNumber: 0 })
+    ).rejects.toThrow();
+  });
+});

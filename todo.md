@@ -47,19 +47,19 @@
 - [x] cable_templates + cable_modules + cable_fibers (шаблоны кабелей)
 - [x] fiber_colors — справочник цветов IEC 60304 (12 цветов)
 - [x] splice_closures + fiber_splices — муфты и сварки
-- [ ] optical_crosses + cross_ports + port_connections — кроссы
+- [x] optical_crosses + cross_ports + port_connections — кроссы
 
 ### Бэкенд
 - [x] tRPC: cableTemplates CRUD (модули, волокна, цвета)
 - [x] tRPC: spliceClosure CRUD + fiber_splices
-- [ ] tRPC: opticalCross CRUD + порты + коммутация
-- [ ] tRPC: fibers.trace — трассировка волокна по маршруту
+- [x] tRPC: opticalCross CRUD + порты + коммутация
+- [x] tRPC: fiberTrace.trace — трассировка волокна по маршруту
 
 ### Фронтенд
 - [x] TemplatesPage — полный CRUD шаблонов (модули/волокна/цвета)
 - [x] SplicePassportPage — страница паспорта муфты со списком сварок
-- [ ] CrossPage — страница кросса: схема портов и коммутации
-- [ ] FiberTrace — трассировка волокна на карте
+- [x] OpticalCrossPage — страница кросса: схема портов и коммутации
+- [x] FiberTracePage — трассировка волокна через сварки
 
 ## Этап 3: Активное оборудование
 - [ ] Оптические кроссы (патч-панели, порты, коммутация)
@@ -73,3 +73,14 @@
 
 ## Баги
 - [x] Левое боковое меню (тулбар инструментов) на карте не видно / не открывалось (исправлено: breakpoint md → sm, убрана обёртка тулбара)
+
+## Этап 2 (продолжение)
+- [x] Открытие паспорта муфты с карты (кнопка в попапе объекта типа Муфта)
+- [x] Оптические кроссы: таблицы БД optical_crosses, cross_ports, port_connections
+- [x] Оптические кроссы: tRPC роутеры CRUD
+- [x] Оптические кроссы: UI страница схемы портов и коммутации
+
+## Этап 3 — Трассировка волокна
+- [x] Выбор кабель → модуль → волокно в UI (FiberTracePage)
+- [x] Поиск маршрута волокна через сварки (traceFiber BFS)
+- [ ] Подсветка маршрута на карте (следующий этап)

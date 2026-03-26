@@ -23,6 +23,15 @@ import {
   fiberColors,
   spliceClosures,
   fiberSplices,
+  opticalCrosses,
+  crossPorts,
+  portConnections,
+  OpticalCross,
+  InsertOpticalCross,
+  CrossPort,
+  InsertCrossPort,
+  PortConnection,
+  InsertPortConnection,
   mapPoints,
   publicMapTokens,
   regions,
@@ -674,4 +683,212 @@ export async function deleteSpliceClosure(id: number) {
   if (!db) return;
   await db.delete(fiberSplices).where(eq(fiberSplices.closureId, id));
   await db.delete(spliceClosures).where(eq(spliceClosures.id, id));
+}
+
+// ─── Optical Crosses (ODF) ─────────────────────────────────────────────────
+
+export async function getOpticalCrossesByMapPoint(mapPointId: number): Promise<OpticalCross[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(opticalCrosses).where(eq(opticalCrosses.mapPointId, mapPointId));
+}
+
+export async function getOpticalCrossById(id: number): Promise<OpticalCross | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(opticalCrosses).where(eq(opticalCrosses.id, id)).limit(1);
+  return rows[0];
+}
+
+export async function getAllOpticalCrosses(): Promise<OpticalCross[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(opticalCrosses);
+}
+
+export async function upsertOpticalCross(data: InsertOpticalCross & { id?: number }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const { id, ...payload } = data;
+  if (id) {
+    await db.update(opticalCrosses).set(payload).where(eq(opticalCrosses.id, id));
+    return id;
+  }
+  const result = await db.insert(opticalCrosses).values(payload);
+  return (result[0] as any).insertId as number;
+}
+
+export async function deleteOpticalCross(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  // Каскадно удаляем коммутации и порты
+  const ports = await db.select({ id: crossPorts.id }).from(crossPorts).where(eq(crossPorts.crossId, id));
+  const portIds = ports.map(p => p.id);
+  if (portIds.length > 0) {
+    await db.delete(portConnections).where(eq(portConnections.crossId, id));
+    await db.delete(crossPorts).where(eq(crossPorts.crossId, id));
+  }
+  await db.delete(opticalCrosses).where(eq(opticalCrosses.id, id));
+}
+
+// ─── Cross Ports ──────────────────────────────────────────────────────────
+
+export async function getCrossPortsByCross(crossId: number): Promise<CrossPort[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(crossPorts).where(eq(crossPorts.crossId, crossId))
+    .orderBy(crossPorts.portNumber);
+}
+
+export async function upsertCrossPort(data: InsertCrossPort & { id?: number }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const { id, ...payload } = data;
+  if (id) {
+    await db.update(crossPorts).set(payload).where(eq(crossPorts.id, id));
+    return id;
+  }
+  const result = await db.insert(crossPorts).values(payload);
+  return (result[0] as any).insertId as number;
+}
+
+export async function deleteCrossPort(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(portConnections).where(eq(portConnections.portAId, id));
+  await db.delete(portConnections).where(eq(portConnections.portBId, id));
+  await db.delete(crossPorts).where(eq(crossPorts.id, id));
+}
+
+// ─── Port Connections ─────────────────────────────────────────────────────
+
+export async function getPortConnectionsByCross(crossId: number): Promise<PortConnection[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(portConnections).where(eq(portConnections.crossId, crossId));
+}
+
+export async function upsertPortConnection(data: InsertPortConnection & { id?: number }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const { id, ...payload } = data;
+  if (id) {
+    await db.update(portConnections).set(payload).where(eq(portConnections.id, id));
+    return id;
+  }
+  const result = await db.insert(portConnections).values(payload);
+  return (result[0] as any).insertId as number;
+}
+
+export async function deletePortConnection(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(portConnections).where(eq(portConnections.id, id));
+}
+
+// ─── Fiber Trace ──────────────────────────────────────────────────────────────
+// Трассировка волокна: находим все сварки, через которые проходит данное волокно
+// Возвращает цепочку: [{closureId, closureName, mapPointId, cableAId, moduleA, fiberA, cableBId, moduleB, fiberB, loss}]
+
+export type TraceHop = {
+  closureId: number;
+  closureName: string | null;
+  mapPointId: number;
+  cableAId: number | null;
+  moduleANumber: number | null;
+  fiberANumber: number | null;
+  cableBId: number | null;
+  moduleBNumber: number | null;
+  fiberBNumber: number | null;
+  loss: string | null;
+  spliceType: string | null;
+};
+
+export async function traceFiber(
+  startCableId: number,
+  startModule: number,
+  startFiber: number,
+  maxHops = 50
+): Promise<TraceHop[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const hops: TraceHop[] = [];
+  let currentCableId = startCableId;
+  let currentModule = startModule;
+  let currentFiber = startFiber;
+  const visited = new Set<string>();
+
+  for (let i = 0; i < maxHops; i++) {
+    const key = `${currentCableId}:${currentModule}:${currentFiber}`;
+    if (visited.has(key)) break;
+    visited.add(key);
+
+    // Ищем сварку где это волокно — сторона A или сторона B
+    const splicesA = await db
+      .select()
+      .from(fiberSplices)
+      .where(
+        and(
+          eq(fiberSplices.cableAId, currentCableId),
+          eq(fiberSplices.moduleANumber, currentModule),
+          eq(fiberSplices.fiberANumber, currentFiber)
+        )
+      )
+      .limit(1);
+
+    const splicesB = await db
+      .select()
+      .from(fiberSplices)
+      .where(
+        and(
+          eq(fiberSplices.cableBId, currentCableId),
+          eq(fiberSplices.moduleBNumber, currentModule),
+          eq(fiberSplices.fiberBNumber, currentFiber)
+        )
+      )
+      .limit(1);
+
+    const splice = splicesA[0] ?? splicesB[0];
+    if (!splice) break;
+
+    // Получаем данные муфты
+    const closures = await db
+      .select()
+      .from(spliceClosures)
+      .where(eq(spliceClosures.id, splice.closureId))
+      .limit(1);
+    const closure = closures[0];
+
+    hops.push({
+      closureId: splice.closureId,
+      closureName: closure?.name ?? null,
+      mapPointId: closure?.mapPointId ?? 0,
+      cableAId: splice.cableAId,
+      moduleANumber: splice.moduleANumber,
+      fiberANumber: splice.fiberANumber,
+      cableBId: splice.cableBId,
+      moduleBNumber: splice.moduleBNumber,
+      fiberBNumber: splice.fiberBNumber,
+      loss: splice.loss?.toString() ?? null,
+      spliceType: splice.spliceType,
+    });
+
+    // Переходим на другую сторону сварки
+    if (splicesA[0]) {
+      // Пришли по стороне A — продолжаем по стороне B
+      if (!splice.cableBId || !splice.moduleBNumber || !splice.fiberBNumber) break;
+      currentCableId = splice.cableBId;
+      currentModule = splice.moduleBNumber;
+      currentFiber = splice.fiberBNumber;
+    } else {
+      // Пришли по стороне B — продолжаем по стороне A
+      if (!splice.cableAId || !splice.moduleANumber || !splice.fiberANumber) break;
+      currentCableId = splice.cableAId;
+      currentModule = splice.moduleANumber;
+      currentFiber = splice.fiberANumber;
+    }
+  }
+
+  return hops;
 }

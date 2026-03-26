@@ -22,6 +22,13 @@
       "when": 1774557850778,
       "tag": "0002_clever_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1774560150875,
+      "tag": "0003_pretty_santa_claus",
+      "breakpoints": true
     }
   ]
 }

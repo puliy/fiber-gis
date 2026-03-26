@@ -50,6 +50,18 @@ import {
   upsertFiberSplice,
   deleteFiberSplice,
   deleteSpliceClosure,
+  getAllOpticalCrosses,
+  getOpticalCrossesByMapPoint,
+  getOpticalCrossById,
+  upsertOpticalCross,
+  deleteOpticalCross,
+  getCrossPortsByCross,
+  upsertCrossPort,
+  deleteCrossPort,
+  getPortConnectionsByCross,
+  upsertPortConnection,
+  deletePortConnection,
+  traceFiber,
 } from "./db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -537,6 +549,94 @@ const spliceRouter = router({
     .mutation(({ input }) => deleteFiberSplice(input.id)),
 });
 
+// ─── Optical Cross Router ───────────────────────────────────────────────────
+
+const opticalCrossRouter = router({
+  list: publicProcedure.query(() => getAllOpticalCrosses()),
+
+  byMapPoint: publicProcedure
+    .input(z.object({ mapPointId: z.number().int().positive() }))
+    .query(({ input }) => getOpticalCrossesByMapPoint(input.mapPointId)),
+
+  byId: publicProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) => getOpticalCrossById(input.id)),
+
+  upsert: editorProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      mapPointId: z.number().int().positive(),
+      name: z.string().min(1).max(255),
+      crossType: z.enum(["ODF", "ШКОС", "МОКС", "other"]).optional(),
+      portCount: z.number().int().min(1).max(1000).optional(),
+      manufacturer: z.string().max(255).optional(),
+      model: z.string().max(255).optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(({ input, ctx }) => upsertOpticalCross({ ...input, createdBy: ctx.user.id })),
+
+  delete: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteOpticalCross(input.id)),
+
+  // ─── Ports ─────────────────────────────────────────────────────────────
+  ports: publicProcedure
+    .input(z.object({ crossId: z.number().int().positive() }))
+    .query(({ input }) => getCrossPortsByCross(input.crossId)),
+
+  upsertPort: editorProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      crossId: z.number().int().positive(),
+      portNumber: z.number().int().min(1),
+      portSide: z.enum(["line", "subscriber"]).optional(),
+      cableId: z.number().int().positive().optional().nullable(),
+      moduleNumber: z.number().int().min(1).optional().nullable(),
+      fiberNumber: z.number().int().min(1).optional().nullable(),
+      colorId: z.number().int().positive().optional().nullable(),
+      status: z.enum(["free", "used", "reserved", "faulty"]).optional(),
+      notes: z.string().max(255).optional().nullable(),
+    }))
+    .mutation(({ input }) => upsertCrossPort(input)),
+
+  deletePort: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deleteCrossPort(input.id)),
+
+  // ─── Connections ────────────────────────────────────────────────────────
+  connections: publicProcedure
+    .input(z.object({ crossId: z.number().int().positive() }))
+    .query(({ input }) => getPortConnectionsByCross(input.crossId)),
+
+  upsertConnection: editorProcedure
+    .input(z.object({
+      id: z.number().int().positive().optional(),
+      crossId: z.number().int().positive(),
+      portAId: z.number().int().positive(),
+      portBId: z.number().int().positive(),
+      connectorType: z.enum(["SC", "LC", "FC", "ST", "E2000"]).optional(),
+      loss: z.string().optional().nullable(),
+      notes: z.string().max(255).optional().nullable(),
+    }))
+    .mutation(({ input }) => upsertPortConnection(input)),
+
+  deleteConnection: editorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => deletePortConnection(input.id)),
+});
+
+// ─── Fiber Trace Router ───────────────────────────────────────────────────
+
+const fiberTraceRouter = router({
+  trace: publicProcedure
+    .input(z.object({
+      cableId: z.number().int().positive(),
+      moduleNumber: z.number().int().min(1),
+      fiberNumber: z.number().int().min(1),
+    }))
+    .query(({ input }) => traceFiber(input.cableId, input.moduleNumber, input.fiberNumber)),
+});
+
 const adminRouter = router({
   users: adminProcedure.query(() => getAllUsers()),
   updateUserRole: adminProcedure
@@ -573,6 +673,8 @@ export const appRouter = router({
   fiberColors: fiberColorsRouter,
   cableModules: cableModulesRouter,
   splice: spliceRouter,
+  opticalCross: opticalCrossRouter,
+  fiberTrace: fiberTraceRouter,
 });
 
 export type AppRouter = typeof appRouter;

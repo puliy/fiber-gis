@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronDown, Menu, LogOut, User, Settings, Map,
-  Activity, Shield, Search, X, MousePointer2,
-  Network, GitBranch, Cable, Building2,
+  Activity, Shield, Search, X, MousePointer2, GitBranch,
+  Network, Cable, Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -283,6 +283,9 @@ export default function MapPage() {
               )}
               <DropdownMenuItem onClick={() => navigate("/templates")} className="text-xs gap-2">
                 <Settings className="w-3.5 h-3.5" /> Шаблоны кабелей
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/trace")} className="text-xs gap-2">
+                <GitBranch className="w-3.5 h-3.5" /> Трассировка волокна
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-xs gap-2 text-destructive">

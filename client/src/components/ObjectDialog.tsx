@@ -10,10 +10,61 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, History, MapPin, Cable, X } from "lucide-react";
+import { Pencil, Trash2, History, MapPin, Cable, X, FileText, Network } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 import { getTypeLabel, getStatusLabel, getLayingLabel } from "./FiberMap";
+
+// Кнопка открытия оптического кросса — если кросс есть, открывает его; если нет — предлагает создать
+function OpticalCrossButton({ mapPointId, onClose, navigate }: { mapPointId: number | null; onClose: () => void; navigate: (path: string) => void }) {
+  const { data: crosses = [], isLoading } = trpc.opticalCross.byMapPoint.useQuery(
+    { mapPointId: mapPointId! },
+    { enabled: !!mapPointId }
+  );
+  const utils = trpc.useUtils();
+  const upsert = trpc.opticalCross.upsert.useMutation({
+    onSuccess: (id) => {
+      onClose();
+      navigate(`/cross/${id}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (isLoading) return null;
+
+  if (crosses.length > 0) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-cyan-600 text-cyan-400 hover:bg-cyan-600/10"
+        onClick={() => { onClose(); navigate(`/cross/${crosses[0].id}`); }}
+      >
+        <Network className="w-3 h-3 mr-1" /> Открыть кросс
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="border-cyan-600/50 text-cyan-500/70 hover:bg-cyan-600/10"
+      disabled={upsert.isPending}
+      onClick={() => {
+        if (!mapPointId) return;
+        upsert.mutate({
+          mapPointId,
+          name: `ОКС-${mapPointId}`,
+          portCount: 24,
+        });
+      }}
+    >
+      <Network className="w-3 h-3 mr-1" /> Создать кросс
+    </Button>
+  );
+}
 
 interface ObjectDialogProps {
   objectType: "map_point" | "cable" | null;
@@ -27,6 +78,7 @@ interface ObjectDialogProps {
 export default function ObjectDialog({ objectType, objectId, onClose, onDeleted, onUpdated, canEdit }: ObjectDialogProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Record<string, unknown>>({});
+  const [, navigate] = useLocation();
 
   const isOpen = objectType !== null && objectId !== null;
 
@@ -170,6 +222,19 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
                     <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
                       <Pencil className="w-3 h-3 mr-1" /> Изменить
                     </Button>
+                    {objectType === "map_point" && pointData?.type === "splice" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-amber-600 text-amber-500 hover:bg-amber-600/10"
+                        onClick={() => { onClose(); navigate(`/splice/${objectId}`); }}
+                      >
+                        <FileText className="w-3 h-3 mr-1" /> Паспорт муфты
+                      </Button>
+                    )}
+                    {objectType === "map_point" && ["node_district", "node_trunk", "building"].includes(pointData?.type ?? "") && (
+                      <OpticalCrossButton mapPointId={objectId} onClose={onClose} navigate={navigate} />
+                    )}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="sm" variant="destructive" className="ml-auto">
