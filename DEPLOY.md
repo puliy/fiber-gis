@@ -1,5 +1,34 @@
 # Деплой FiberGIS на VPS
 
+## Быстрый деплой на Timeweb Cloud (fibergis.ru)
+
+**Сервер:** 188.225.84.38 — Ubuntu 24.04, 2 vCPU, 4 GB RAM  
+**Домен:** fibergis.ru  
+
+Войдите через веб-консоль (**Timeweb Cloud → Серверы → fibergis → Консоль**) и выполните одну команду:
+
+```bash
+curl -fsSL "https://ghu_ccIlTZWHWvKBwdx9hyIJf3nsQIWSvS0e3znv@raw.githubusercontent.com/puliy/fiber-gis/main/deploy.sh" | bash
+```
+
+Скрипт автоматически установит Docker, склонирует код, настроит Nginx и запустит приложение.
+
+**SSL (Let's Encrypt)** — выполнить после распространения DNS (1–24 часа):
+
+```bash
+certbot --nginx -d fibergis.ru -d www.fibergis.ru --non-interactive --agree-tos -m admin@fibergis.ru
+```
+
+**DNS записи** (Timeweb Cloud → Домены → fibergis.ru):
+
+| Тип | Имя | Значение | TTL |
+|-----|-----|----------|-----|
+| A | @ | 188.225.84.38 | 600 |
+| A | www | 188.225.84.38 | 600 |
+
+---
+
+
 ## Требования к серверу
 
 | Параметр | Минимум | Рекомендуется |
