@@ -4,13 +4,12 @@ import { type Server } from "http";
 import path from "path";
 
 export async function setupVite(app: Express, server: Server) {
-  // Dynamic import — vite is only available in dev environment
+  // Dynamic imports — vite and its plugins are only available in dev
   const { createServer: createViteServer } = await import("vite");
-  const { default: viteConfig } = await import("../../vite.config");
+  const { nanoid } = await import("nanoid");
 
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
+    configFile: path.resolve(import.meta.dirname, "../../vite.config.ts"),
     server: {
       middlewareMode: true,
       hmr: { server },
@@ -30,7 +29,6 @@ export async function setupVite(app: Express, server: Server) {
         "index.html"
       );
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      const { nanoid } = await import("nanoid");
       template = template.replace(
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
@@ -45,8 +43,9 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // In production Docker: dist/public is where Vite outputs the client build
-  // esbuild outputs server bundle to dist/index.js, Vite outputs client to dist/public
+  // In Docker production: esbuild outputs to dist/index.js,
+  // Vite outputs client to dist/public
+  // import.meta.dirname = /app/dist (where index.js lives)
   const distPath = path.resolve(import.meta.dirname, "public");
 
   if (!fs.existsSync(distPath)) {
