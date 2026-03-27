@@ -13,6 +13,8 @@ import OpticalCrossPage from "./pages/OpticalCrossPage";
 import FiberTracePage from "./pages/FiberTracePage";
 import EquipmentPage from "./pages/EquipmentPage";
 import ImportPage from "./pages/ImportPage";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 
 function Router() {
   return (
@@ -25,6 +27,8 @@ function Router() {
       <Route path="/trace" component={FiberTracePage} />
       <Route path="/equipment" component={EquipmentPage} />
       <Route path="/import" component={ImportPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
       <Route path="/public/:token" component={PublicMapPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
