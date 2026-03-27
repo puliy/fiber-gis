@@ -16,7 +16,7 @@ RUN pnpm install --no-frozen-lockfile
 # Copy source
 COPY . .
 
-# Build client (Vite)
+# Build client (Vite) + server (esbuild → dist/index.js)
 RUN pnpm build
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
@@ -33,18 +33,14 @@ COPY patches ./patches
 # Install production dependencies only
 RUN pnpm install --no-frozen-lockfile --prod
 
-# Copy built client
+# Copy built output (client + server bundle)
 COPY --from=builder /app/dist ./dist
 
-# Copy server source
-COPY --from=builder /app/server ./server
+# Copy drizzle migrations
 COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/shared ./shared
-# Install tsx for server runtime
-RUN npm install -g tsx
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
 
-CMD ["tsx", "server/_core/index.ts"]
+CMD ["node", "dist/index.js"]
