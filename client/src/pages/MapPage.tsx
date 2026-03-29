@@ -381,6 +381,10 @@ export default function MapPage() {
 
       {/* ─── Main Content ─────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
+        {/* Floating Toolbar — desktop only */}
+        <div className="hidden md:block">
+          <MapToolbar activeTool={activeTool} onToolChange={setActiveTool} canEdit={canEdit} />
+        </div>
         {/* Map */}
         <div className="flex-1 relative">
           <FiberMap
