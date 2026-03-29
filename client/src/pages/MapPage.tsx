@@ -4,6 +4,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import FiberMap, { type MapTool, type LayerVisibility, getTypeLabel } from "@/components/FiberMap";
 import MapToolbar from "@/components/MapToolbar";
 import LayerPanel from "@/components/LayerPanel";
+import FilterPanel, { DEFAULT_FILTER } from "@/components/FilterPanel";
+import type { MapFilter } from "@/components/FiberMap"; // eslint-disable-line @typescript-eslint/no-unused-vars
 import ObjectDialog from "@/components/ObjectDialog";
 import CreateObjectDialog from "@/components/CreateObjectDialog";
 import { Button } from "@/components/ui/button";
@@ -21,8 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronDown, Menu, LogOut, User, Settings, Map,
-  Activity, Shield, Search, X, MousePointer2, GitBranch,
-  Network, Cable, Building2, Server, FileDown, Upload,
+  Activity, Shield, Search, X, Server, FileDown, Upload, GitBranch, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -34,27 +35,19 @@ type CreateData =
   | { kind: "building"; polygon: { lat: number; lng: number }[] }
   | { kind: "duct"; route: { lat: number; lng: number }[] };
 
-const TOOL_ICONS: Record<string, React.ReactNode> = {
-  select:            <MousePointer2 className="w-4 h-4" />,
-  add_pole:          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="currentColor"><rect x="7" y="1" width="2" height="14" rx="1"/><rect x="3" y="4" width="10" height="1.5" rx=".75"/><rect x="4" y="7" width="8" height="1.5" rx=".75"/></svg>,
-  add_manhole:       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="currentColor"><rect x="2" y="2" width="12" height="12" rx="2" fillOpacity=".3" stroke="currentColor" strokeWidth="1.5" fill="none"/><circle cx="8" cy="8" r="3"/></svg>,
-  add_splice:        <svg viewBox="0 0 16 16" className="w-4 h-4" fill="currentColor"><ellipse cx="8" cy="8" rx="6" ry="3.5"/></svg>,
-  add_node_trunk:    <Network className="w-4 h-4" />,
-  add_node_district: <GitBranch className="w-4 h-4" />,
-  add_cable:         <Cable className="w-4 h-4" />,
-  add_building:      <Building2 className="w-4 h-4" />,
-};
-
 const TOOL_COLORS: Record<string, string> = {
   select: "#888", add_pole: "#6b8cba", add_manhole: "#8b7355",
   add_splice: "#e8a020", add_node_trunk: "#e05c5c",
   add_node_district: "#4caf8a", add_cable: "#4a9eff", add_building: "#9b7ec8",
+  add_duct: "#a0d080", add_mast: "#7a9e7e", add_entry_point: "#9b7ec8",
+  add_flag: "#f0c040", add_camera: "#60a0d0",
 };
 
 const TOOL_LABELS: Record<string, string> = {
   select: "Выбор", add_pole: "Опора", add_manhole: "Колодец",
   add_splice: "Муфта", add_node_trunk: "Узел маг.", add_node_district: "Узел рай.",
-  add_cable: "Кабель", add_building: "Здание",
+  add_cable: "Кабель", add_building: "Здание", add_duct: "Канализация",
+  add_mast: "Мачта", add_entry_point: "Точка ввода", add_flag: "Флаг", add_camera: "Камера",
 };
 
 export default function MapPage() {
@@ -75,6 +68,12 @@ export default function MapPage() {
   const [traceCoords, setTraceCoords] = useState<Array<{ lat: number; lng: number; label: string }> | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [mapFilter, setMapFilter] = useState<MapFilter>({
+    statuses: new Set(DEFAULT_FILTER.statuses),
+    pointTypes: new Set(DEFAULT_FILTER.pointTypes),
+    cableStatuses: new Set(DEFAULT_FILTER.cableStatuses),
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +97,7 @@ export default function MapPage() {
     { enabled: searchOpen && searchQuery.length >= 2, staleTime: 5000 }
   );
 
-  const canEdit = isAuthenticated && (user?.role === "admin" || user?.role === "user");
+  const canEdit = isAuthenticated && (user?.role === "admin" || user?.role === "user" || user?.role === "editor");
 
   const handleObjectSelect = useCallback((type: string, id: number) => {
     setSelectedObject({ type: type as "map_point" | "cable", id });
@@ -264,6 +263,20 @@ export default function MapPage() {
           )}
         </div>
 
+        {/* Filter button */}
+        <Button
+          variant="ghost" size="sm"
+          className={`h-7 gap-1.5 text-xs hidden sm:flex ${
+            (mapFilter.statuses.size < 3 || mapFilter.pointTypes.size < 10 || mapFilter.cableStatuses.size < 3)
+              ? "text-primary border border-primary/40" : ""
+          }`}
+          onClick={() => setFilterOpen((v) => !v)}
+          title="Фильтр объектов"
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span className="hidden md:block">Фильтр</span>
+        </Button>
+
         {/* Status badge */}
         <Badge variant="outline" className="text-[10px] border-green-600 text-green-500 px-1.5 py-0 hidden md:flex gap-1">
           <Activity className="w-2.5 h-2.5" /> Online
@@ -356,29 +369,7 @@ export default function MapPage() {
 
               <div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Инструменты</div>
-                <div className="grid grid-cols-4 gap-1">
-                  {(Object.keys(TOOL_ICONS) as MapTool[]).map((tool) => {
-                    const isActive = activeTool === tool;
-                    const isDisabled = !canEdit && tool !== "select";
-                    return (
-                      <button
-                        key={tool}
-                        onClick={() => { if (!isDisabled) { setActiveTool(tool); setSidebarOpen(false); } }}
-                        disabled={isDisabled}
-                        title={TOOL_LABELS[tool]}
-                        className={`h-10 rounded flex items-center justify-center border transition-colors ${
-                          isActive ? "border-primary" : "border-border hover:bg-accent"
-                        } ${isDisabled ? "opacity-30 cursor-not-allowed" : ""}`}
-                        style={{
-                          backgroundColor: isActive ? TOOL_COLORS[tool] + "33" : undefined,
-                          color: isActive ? TOOL_COLORS[tool] : undefined,
-                        }}
-                      >
-                        {TOOL_ICONS[tool]}
-                      </button>
-                    );
-                  })}
-                </div>
+                <MapToolbar activeTool={activeTool} onToolChange={(t) => { setActiveTool(t); setSidebarOpen(false); }} canEdit={canEdit} />
               </div>
 
               <Separator />
@@ -390,11 +381,6 @@ export default function MapPage() {
 
       {/* ─── Main Content ─────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — tools (desktop) */}
-        <div className="hidden sm:flex flex-col items-center p-1.5 bg-card border-r border-border flex-shrink-0 z-10 overflow-y-auto">
-          <MapToolbar activeTool={activeTool} onToolChange={setActiveTool} canEdit={canEdit} />
-        </div>
-
         {/* Map */}
         <div className="flex-1 relative">
           <FiberMap
@@ -408,12 +394,20 @@ export default function MapPage() {
             onObjectCreate={handleObjectCreate}
             refreshTrigger={refreshTrigger}
             traceCoords={traceCoords}
+            mapFilter={mapFilter}
           />
+
+          {/* Filter Panel */}
+          {filterOpen && (
+            <div className="absolute top-2 right-2 z-[450]">
+              <FilterPanel filter={mapFilter} onChange={setMapFilter} onClose={() => setFilterOpen(false)} />
+            </div>
+          )}
 
           {/* Active tool hint */}
           {activeTool !== "select" && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-card/90 backdrop-blur border border-border rounded-full px-4 py-1.5 text-xs shadow-lg z-[400] pointer-events-none flex items-center gap-2">
-              <span style={{ color: TOOL_COLORS[activeTool] }}>{TOOL_ICONS[activeTool]}</span>
+              <span style={{ color: TOOL_COLORS[activeTool] }}>●</span>
               <span className="font-medium">{TOOL_LABELS[activeTool]}</span>
               <Separator orientation="vertical" className="h-3" />
               <span className="text-muted-foreground">

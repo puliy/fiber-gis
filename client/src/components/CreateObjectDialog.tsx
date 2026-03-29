@@ -77,8 +77,25 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
     onError: (e) => toast.error(e.message),
   });
 
+  const snapToPoint = trpc.mapPoints.snapNearest.useQuery(
+    {
+      regionId,
+      startLat: data?.kind === "cable" ? data.route[0]?.lat ?? 0 : 0,
+      startLng: data?.kind === "cable" ? data.route[0]?.lng ?? 0 : 0,
+      endLat: data?.kind === "cable" ? data.route[data.route.length - 1]?.lat ?? 0 : 0,
+      endLng: data?.kind === "cable" ? data.route[data.route.length - 1]?.lng ?? 0 : 0,
+      radiusMeters: 50,
+    },
+    { enabled: data?.kind === "cable" && data.route.length >= 2 }
+  );
+
   const createDuct = trpc.cableDucts.upsert.useMutation({
     onSuccess: () => { toast.success("Канализация добавлена"); onCreated(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createBuilding = trpc.buildings.create.useMutation({
+    onSuccess: () => { toast.success("Здание добавлено"); onCreated(); onClose(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -102,10 +119,16 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
         route: data.route,
         status, layingType,
         templateId,
+        startPointId: snapToPoint.data?.startPointId ?? undefined,
+        endPointId: snapToPoint.data?.endPointId ?? undefined,
       });
     } else if (data.kind === "building") {
-      toast.info("Создание зданий будет доступно в следующей версии");
-      onClose();
+      createBuilding.mutate({
+        regionId,
+        name: name || undefined,
+        description: description || undefined,
+        polygon: data.polygon,
+      });
     } else if (data.kind === "duct") {
       createDuct.mutate({
         regionId,
@@ -117,8 +140,8 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
     }
   };
 
-  const isLoading = createPoint.isPending || createCable.isPending || createDuct.isPending;
-  const routeLen  = (data?.kind === "cable" || data?.kind === "duct") ? calcRouteLength(data.route) : 0;
+  const isLoading = createPoint.isPending || createCable.isPending || createDuct.isPending || createBuilding.isPending;
+  const routeLen  = (data?.kind === "cable" || data?.kind === "duct") ? calcRouteLength((data as any).route ?? []) : 0;
 
   const titleIcon =
     data?.kind === "cable"    ? <Cable    className="w-4 h-4 text-blue-400" /> :
@@ -198,7 +221,7 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
                 />
               </div>
               <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 flex items-center justify-between">
-                <span>Точек маршрута: <strong>{data.route.length}</strong></span>
+                <span>Точек маршрута: <strong>{(data as any).route?.length ?? 0}</strong></span>
                 <Badge variant="outline" className="text-[10px] px-1.5">~{routeLen} м</Badge>
               </div>
             </>
@@ -248,12 +271,19 @@ export default function CreateObjectDialog({ data, regionId, onClose, onCreated 
               )}
 
               <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 flex items-center justify-between">
-                <span>Точек маршрута: <strong>{data.route.length}</strong></span>
+                <span>Точек маршрута: <strong>{(data as any).route?.length ?? 0}</strong></span>
                 <Badge variant="outline" className="text-[10px] px-1.5">
                   ~{routeLen} м
                 </Badge>
               </div>
             </>
+          )}
+
+          {/* Building-specific fields */}
+          {data?.kind === "building" && (
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 flex items-center justify-between">
+              <span>Вершин полигона: <strong>{(data as any).polygon?.length ?? 0}</strong></span>
+            </div>
           )}
 
           {/* Point-specific fields */}

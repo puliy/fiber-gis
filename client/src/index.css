@@ -265,6 +265,20 @@
   .leaflet-control-zoom { display: none; }
 }
 
+/* ─── Dialog z-index fix: lower Leaflet when dialog is open ─────────────── */
+/* Radix Dialog portal renders inside body; when open, push Leaflet below */
+body:has([data-slot="dialog-overlay"][data-state="open"]) .leaflet-pane,
+body:has([data-slot="dialog-overlay"][data-state="open"]) .leaflet-control-container,
+body:has([data-slot="dialog-overlay"][data-state="open"]) .leaflet-top,
+body:has([data-slot="dialog-overlay"][data-state="open"]) .leaflet-bottom {
+  z-index: 1 !important;
+}
+
+/* Radix Popper portals (Select, DropdownMenu, Popover) must float above dialog overlay */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
 /* ─── Print styles for passport pages ────────────────────────────────────── */
 @media print {
   header button, .no-print, [data-radix-popper-content-wrapper] { display: none !important; }

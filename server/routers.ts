@@ -13,8 +13,11 @@ import {
   createMapPoint,
   createPublicToken,
   createRegion,
+  deleteRegion,
+  getRegionStats,
   deleteBuilding,
   deleteCable,
+  getCablesByPoint,
   deleteMapPoint,
   deletePublicToken,
   getAuditLog,
@@ -166,6 +169,12 @@ const regionsRouter = router({
         ...(centerLng !== undefined ? { centerLng: String(centerLng) } : {}),
       });
     }),
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ input }) => deleteRegion(input.id)),
+  stats: adminProcedure
+    .input(z.object({ regionId: z.number() }))
+    .query(({ input }) => getRegionStats(input.regionId)),
 });
 
 const mapPointsRouter = router({
@@ -241,6 +250,40 @@ const mapPointsRouter = router({
     .query(({ input }) => searchMapPoints(input.regionId, input.query)),
 
   // ─── Batch Import ──────────────────────────────────────────────────────────
+  snapNearest: protectedProcedure
+    .input(z.object({
+      regionId: z.number(),
+      startLat: z.number(),
+      startLng: z.number(),
+      endLat: z.number(),
+      endLng: z.number(),
+      radiusMeters: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      const pts = await getMapPointsInBounds(
+        input.regionId,
+        Math.min(input.startLat, input.endLat) - 0.001,
+        Math.min(input.startLng, input.endLng) - 0.001,
+        Math.max(input.startLat, input.endLat) + 0.001,
+        Math.max(input.startLng, input.endLng) + 0.001
+      );
+      const R = 6371000;
+      function dist(lat1: number, lng1: number, lat2: number, lng2: number) {
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      }
+      let startPoint: { id: number; dist: number } | null = null;
+      let endPoint: { id: number; dist: number } | null = null;
+      for (const pt of pts) {
+        const ds = dist(input.startLat, input.startLng, Number(pt.lat), Number(pt.lng));
+        const de = dist(input.endLat, input.endLng, Number(pt.lat), Number(pt.lng));
+        if (ds <= input.radiusMeters && (!startPoint || ds < startPoint.dist)) startPoint = { id: pt.id, dist: ds };
+        if (de <= input.radiusMeters && (!endPoint || de < endPoint.dist)) endPoint = { id: pt.id, dist: de };
+      }
+      return { startPointId: startPoint?.id ?? null, endPointId: endPoint?.id ?? null };
+    }),
   importBatch: editorProcedure
     .input(
       z.object({
@@ -312,6 +355,8 @@ const cablesRouter = router({
         lengthFact: z.number().optional(),
         description: z.string().optional(),
         isPublic: z.boolean().default(false),
+        startPointId: z.number().optional(),
+        endPointId: z.number().optional(),
       })
     )
     .mutation(({ input, ctx }) => {
@@ -370,13 +415,15 @@ const cablesRouter = router({
       return updateCable(id, updates as any, ctx.user.id, ctx.user.name ?? "Unknown");
     }),
 
-  delete: editorProcedure
+   delete: editorProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ input, ctx }) =>
       deleteCable(input.id, ctx.user.id, ctx.user.name ?? "Unknown")
     ),
+  byPoint: protectedProcedure
+    .input(z.object({ pointId: z.number() }))
+    .query(({ input }) => getCablesByPoint(input.pointId)),
 });
-
 const buildingsRouter = router({
   inBounds: protectedProcedure.input(boundsInput).query(({ input }) =>
     getBuildingsInBounds(input.regionId, input.minLat, input.minLng, input.maxLat, input.maxLng)
@@ -802,7 +849,7 @@ const splittersRouter = router({
 const adminRouter = router({
   users: adminProcedure.query(() => getAllUsers()),
   updateUserRole: adminProcedure
-    .input(z.object({ userId: z.number(), role: z.enum(["user", "admin", "viewer"]) }))
+    .input(z.object({ userId: z.number(), role: z.enum(["user", "admin", "viewer", "editor"]) }))
     .mutation(({ input }) => updateUserRole(input.userId, input.role)),
   createCableTemplate: adminProcedure
     .input(z.object({

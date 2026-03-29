@@ -188,6 +188,11 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
     { enabled: isOpen }
   );
 
+  const { data: cablesByPoint } = trpc.cables.byPoint.useQuery(
+    { pointId: objectId! },
+    { enabled: isOpen && objectType === "map_point" }
+  );
+
   const updatePoint = trpc.mapPoints.update.useMutation({
     onSuccess: () => { toast.success("Объект обновлён"); setIsEditing(false); refetchPoint(); onUpdated(); },
     onError: (e) => toast.error(e.message),
@@ -230,6 +235,7 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
         address: editData.address as string,
         status: editData.status as any,
         type: editData.type as any,
+        isPublic: editData.isPublic as boolean,
       });
     } else {
       updateCable.mutate({
@@ -277,6 +283,9 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
         <Tabs defaultValue="info" className="flex-1">
           <TabsList className="w-full rounded-none border-b border-border bg-transparent h-9 px-4">
             <TabsTrigger value="info" className="text-xs">Атрибуты</TabsTrigger>
+            {objectType === "map_point" && (
+              <TabsTrigger value="cables" className="text-xs">Кабели ({cablesByPoint?.length ?? 0})</TabsTrigger>
+            )}
             <TabsTrigger value="history" className="text-xs">История ({auditData?.length ?? 0})</TabsTrigger>
           </TabsList>
 
@@ -359,6 +368,34 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
               </div>
             )}
           </TabsContent>
+
+          {objectType === "map_point" && (
+            <TabsContent value="cables" className="m-0">
+              <ScrollArea className="max-h-[60vh]">
+                <div className="px-4 py-3 space-y-2">
+                  {!cablesByPoint || cablesByPoint.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-4">Кабелей не найдено</div>
+                  ) : (
+                    cablesByPoint.map((cable) => (
+                      <div key={cable.id} className="border border-border rounded p-2.5 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{cable.name ?? `Кабель #${cable.id}`}</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5"
+                            style={{ borderColor: cable.status === "fact" ? "#4caf8a" : cable.status === "plan" ? "#e8a020" : "#888", color: cable.status === "fact" ? "#4caf8a" : cable.status === "plan" ? "#e8a020" : "#888" }}
+                          >
+                            {getStatusLabel(cable.status ?? "fact")}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {getLayingLabel(cable.layingType ?? "aerial")} • {cable.lengthCalc ? `~${Math.round(Number(cable.lengthCalc))} м` : "—"}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          )}
 
           <TabsContent value="history" className="m-0">
             <ScrollArea className="max-h-[60vh]">
@@ -531,6 +568,19 @@ function EditForm({
           rows={2}
         />
       </div>
+
+      {objectType === "map_point" && (
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            type="checkbox"
+            id="isPublic"
+            checked={!!(data.isPublic)}
+            onChange={(e) => onChange("isPublic", e.target.checked)}
+            className="w-3.5 h-3.5 accent-primary"
+          />
+          <Label htmlFor="isPublic" className="text-xs text-muted-foreground cursor-pointer">Публичный объект (виден в публичной карте)</Label>
+        </div>
+      )}
     </div>
   );
 }

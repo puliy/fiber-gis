@@ -119,7 +119,7 @@ export async function getAllUsers() {
   return db.select().from(users).orderBy(desc(users.createdAt));
 }
 
-export async function updateUserRole(userId: number, role: "user" | "admin" | "viewer") {
+export async function updateUserRole(userId: number, role: "user" | "admin" | "viewer" | "editor") {
   const db = await getDb();
   if (!db) return;
   await db.update(users).set({ role }).where(eq(users.id, userId));
@@ -145,6 +145,21 @@ export async function createRegion(data: typeof regions.$inferInsert): Promise<n
   if (!db) throw new Error("DB not available");
   const result = await db.insert(regions).values(data);
   return (result[0] as any).insertId;
+}
+
+export async function deleteRegion(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(regions).where(eq(regions.id, id));
+}
+
+export async function getRegionStats(regionId: number): Promise<{ points: number; cables: number; buildings: number }> {
+  const db = await getDb();
+  if (!db) return { points: 0, cables: 0, buildings: 0 };
+  const [pts] = await db.select({ count: sql<number>`count(*)` }).from(mapPoints).where(eq(mapPoints.regionId, regionId));
+  const [cbs] = await db.select({ count: sql<number>`count(*)` }).from(cables).where(eq(cables.regionId, regionId));
+  const [blds] = await db.select({ count: sql<number>`count(*)` }).from(buildings).where(eq(buildings.regionId, regionId));
+  return { points: Number(pts.count), cables: Number(cbs.count), buildings: Number(blds.count) };
 }
 
 export async function updateRegion(id: number, data: Partial<typeof regions.$inferInsert>) {
@@ -274,6 +289,15 @@ export async function updateCable(
   await db.update(cables).set({ ...data, updatedBy: userId }).where(eq(cables.id, id));
   const changedFields = old ? Object.keys(data).filter((k) => (old as any)[k] !== (data as any)[k]) : Object.keys(data);
   await writeAuditLog("cables", id, "UPDATE", userId, userName, old, data, changedFields);
+}
+
+export async function getCablesByPoint(pointId: number): Promise<Cable[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const { or, eq } = await import("drizzle-orm");
+  return db.select().from(cables).where(
+    or(eq(cables.startPointId, pointId), eq(cables.endPointId, pointId))
+  );
 }
 
 export async function deleteCable(id: number, userId: number, userName: string): Promise<void> {

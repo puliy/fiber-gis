@@ -43,6 +43,13 @@
       "when": 1774602428355,
       "tag": "0005_sharp_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1774776343333,
+      "tag": "0006_empty_nebula",
+      "breakpoints": true
     }
   ]
 }

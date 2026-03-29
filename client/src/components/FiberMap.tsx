@@ -13,7 +13,7 @@ L.Icon.Default.mergeOptions({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type MapTool = "select" | "add_pole" | "add_manhole" | "add_splice" | "add_node_trunk" | "add_node_district" | "add_cable" | "add_building" | "add_duct";
+export type MapTool = "select" | "add_pole" | "add_manhole" | "add_splice" | "add_node_trunk" | "add_node_district" | "add_cable" | "add_building" | "add_duct" | "add_mast" | "add_entry_point" | "add_flag" | "add_camera";
 
 export type LayerVisibility = {
   poles: boolean;
@@ -23,6 +23,12 @@ export type LayerVisibility = {
   cables: boolean;
   buildings: boolean;
   cableDucts: boolean;
+};
+
+export type MapFilter = {
+  statuses: Set<string>;
+  pointTypes: Set<string>;
+  cableStatuses: Set<string>;
 };
 
 interface FiberMapProps {
@@ -37,6 +43,8 @@ interface FiberMapProps {
   refreshTrigger?: number;
   /** Координаты маршрута трассировки волокна */
   traceCoords?: Array<{ lat: number; lng: number; label: string }>;
+  /** Фильтр объектов на карте */
+  mapFilter?: MapFilter;
 }
 
 // ─── Marker config ────────────────────────────────────────────────────────────
@@ -99,6 +107,7 @@ export default function FiberMap({
   onObjectCreate,
   refreshTrigger,
   traceCoords,
+  mapFilter,
 }: FiberMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -109,6 +118,10 @@ export default function FiberMap({
     baseLayers: Record<string, L.TileLayer>;
   } | null>(null);
   const activeToolRef = useRef<MapTool>(activeTool);
+  const onObjectCreateRef = useRef(onObjectCreate);
+  useEffect(() => { onObjectCreateRef.current = onObjectCreate; }, [onObjectCreate]);
+  const onObjectSelectRef = useRef(onObjectSelect);
+  useEffect(() => { onObjectSelectRef.current = onObjectSelect; }, [onObjectSelect]);
   const cableDrawRef = useRef<{ points: L.LatLng[]; polyline: L.Polyline | null }>({ points: [], polyline: null });
   const traceLayerRef = useRef<L.LayerGroup | null>(null);
   const buildingDrawRef = useRef<{ points: L.LatLng[]; polygon: L.Polygon | null }>({ points: [], polygon: null });
@@ -118,12 +131,11 @@ export default function FiberMap({
   // Data queries
   const { data: pointsData, refetch: refetchPoints } = trpc.mapPoints.inBounds.useQuery(
     bounds ? { regionId, ...bounds } : { regionId, minLat: centerLat - 0.05, minLng: centerLng - 0.05, maxLat: centerLat + 0.05, maxLng: centerLng + 0.05 },
-    { enabled: true, staleTime: 10000 }
+    { enabled: true, staleTime: 0 }
   );
-
   const { data: cablesData, refetch: refetchCables } = trpc.cables.inBounds.useQuery(
     bounds ? { regionId, ...bounds } : { regionId, minLat: centerLat - 0.05, minLng: centerLng - 0.05, maxLat: centerLat + 0.05, maxLng: centerLng + 0.05 },
-    { enabled: true, staleTime: 10000 }
+    { enabled: true, staleTime: 0 }
   );
 
   const { data: ductsData } = trpc.cableDucts.byRegion.useQuery(
@@ -140,6 +152,7 @@ export default function FiberMap({
       zoom: defaultZoom,
       zoomControl: true,
       attributionControl: true,
+      doubleClickZoom: false,
     });
 
     // Base layers
@@ -215,13 +228,16 @@ export default function FiberMap({
       const tool = activeToolRef.current;
       if (tool === "select") return;
 
-      if (tool.startsWith("add_") && tool !== "add_cable" && tool !== "add_building") {
+      if (tool.startsWith("add_") && tool !== "add_cable" && tool !== "add_building" && tool !== "add_duct") {
+        // Map tool name to point type
         const pointType = tool.replace("add_", "");
-        onObjectCreate(pointType, { lat: e.latlng.lat, lng: e.latlng.lng });
+        onObjectCreateRef.current(pointType, { lat: e.latlng.lat, lng: e.latlng.lng });
       } else if (tool === "add_cable") {
         handleCableClick(e.latlng, map);
       } else if (tool === "add_building") {
         handleBuildingClick(e.latlng, map);
+      } else if (tool === "add_duct") {
+        handleDuctClick(e.latlng, map);
       }
     });
 
@@ -241,6 +257,7 @@ export default function FiberMap({
     // Cancel drawing on tool change
     if (activeTool !== "add_cable") cancelCableDraw();
     if (activeTool !== "add_building") cancelBuildingDraw();
+    if (activeTool !== "add_duct") cancelDuctDraw();
   }, [activeTool]);
 
   // Re-center when region changes
@@ -275,6 +292,12 @@ export default function FiberMap({
 
       if (!visible) continue;
 
+      // Apply mapFilter
+      if (mapFilter) {
+        if (!mapFilter.statuses.has(pt.status ?? "fact")) continue;
+        if (!mapFilter.pointTypes.has(pt.type)) continue;
+      }
+
       const marker = L.marker([Number(pt.lat), Number(pt.lng)], {
         icon: createMarkerIcon(pt.type, pt.status),
         title: pt.name ?? pt.type,
@@ -282,7 +305,7 @@ export default function FiberMap({
 
       marker.on("click", (e) => {
         L.DomEvent.stopPropagation(e);
-        onObjectSelect("map_point", pt.id);
+        onObjectSelectRef.current("map_point", pt.id);
       });
 
       marker.bindTooltip(
@@ -295,7 +318,7 @@ export default function FiberMap({
 
       layer.addLayer(marker);
     }
-  }, [pointsData, layerVisibility]);
+  }, [pointsData, layerVisibility, mapFilter]);
 
   // Render cables
   useEffect(() => {
@@ -306,6 +329,8 @@ export default function FiberMap({
     if (!layerVisibility.cables) return;
 
     for (const cable of cablesData) {
+      // Apply mapFilter for cables
+      if (mapFilter && !mapFilter.cableStatuses.has(cable.status ?? "fact")) continue;
       try {
         const route = (typeof cable.route === "string" ? JSON.parse(cable.route) : cable.route) as { lat: number; lng: number }[];
         if (!route || route.length < 2) continue;
@@ -324,7 +349,7 @@ export default function FiberMap({
 
         polyline.on("click", (e) => {
           L.DomEvent.stopPropagation(e);
-          onObjectSelect("cable", cable.id);
+          onObjectSelectRef.current("cable", cable.id);
         });
 
         polyline.bindTooltip(
@@ -339,7 +364,7 @@ export default function FiberMap({
         layer.addLayer(polyline);
       } catch {}
     }
-  }, [cablesData, layerVisibility]);
+  }, [cablesData, layerVisibility, mapFilter]);
 
   // ─── Cable Ducts layer ───────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -477,12 +502,24 @@ export default function FiberMap({
       buildingDrawRef.current.polygon.remove();
     }
 
-    if (buildingDrawRef.current.points.length >= 3) {
+    const pts = buildingDrawRef.current.points;
+    if (pts.length >= 2) {
+      // Show polygon preview from 2nd point onwards (closed)
       buildingDrawRef.current.polygon = L.polygon(
-        buildingDrawRef.current.points,
+        pts,
         { color: "#9b7ec8", fillOpacity: 0.2, weight: 2, dashArray: "6,4" }
       ).addTo(map);
-      toast.info("Двойной клик — завершить здание", { id: "building-draw", duration: 3000 });
+    } else {
+      // First point — show a small circle marker as anchor
+      buildingDrawRef.current.polygon = L.circleMarker(pts[0], {
+        radius: 5, color: "#9b7ec8", fillColor: "#9b7ec8", fillOpacity: 0.8, weight: 2,
+      }).addTo(map) as unknown as L.Polygon;
+    }
+
+    if (pts.length === 1) {
+      toast.info("Кликайте для добавления вершин. Двойной клик — завершить здание", { id: "building-draw", duration: 4000 });
+    } else if (pts.length >= 3) {
+      toast.info(`Вершин: ${pts.length}. Двойной клик — завершить`, { id: "building-draw", duration: 2000 });
     }
   }, []);
 
