@@ -247,21 +247,36 @@ export async function getCablesInBounds(
 ): Promise<Cable[]> {
   const db = await getDb();
   if (!db) return [];
-  // Load cables whose bounding box overlaps the viewport
-  // Use raw SQL for decimal comparisons to avoid TiDB type mismatch
-  return db
-    .select()
-    .from(cables)
-    .where(
-      and(
-        eq(cables.regionId, regionId),
-        sql`${cables.bboxMinLat} <= ${String(maxLat)}`,
-        sql`${cables.bboxMaxLat} >= ${String(minLat)}`,
-        sql`${cables.bboxMinLng} <= ${String(maxLng)}`,
-        sql`${cables.bboxMaxLng} >= ${String(minLng)}`
-      )
-    )
-    .limit(limit);
+  // Use fully raw SQL to avoid TiDB decimal type mismatch with parameterized queries
+  const rows = await db.execute(sql`
+    SELECT * FROM cables
+    WHERE region_id = ${regionId}
+      AND bbox_min_lat <= ${sql.raw(String(maxLat))}
+      AND bbox_max_lat >= ${sql.raw(String(minLat))}
+      AND bbox_min_lng <= ${sql.raw(String(maxLng))}
+      AND bbox_max_lng >= ${sql.raw(String(minLng))}
+    LIMIT ${sql.raw(String(limit))}
+  `);
+  const result = Array.isArray(rows[0]) ? rows[0] : rows;
+  return (result as any[]).map((r: any) => ({
+    ...r,
+    route: typeof r.route === 'string' ? JSON.parse(r.route) : r.route,
+    attributes: typeof r.attributes === 'string' ? JSON.parse(r.attributes) : r.attributes,
+    isPublic: Boolean(r.is_public ?? r.isPublic),
+    regionId: r.region_id ?? r.regionId,
+    templateId: r.template_id ?? r.templateId,
+    layingType: r.laying_type ?? r.layingType,
+    lengthCalc: r.length_calc ?? r.lengthCalc,
+    lengthFact: r.length_fact ?? r.lengthFact,
+    bboxMinLat: r.bbox_min_lat ?? r.bboxMinLat,
+    bboxMinLng: r.bbox_min_lng ?? r.bboxMinLng,
+    bboxMaxLat: r.bbox_max_lat ?? r.bboxMaxLat,
+    bboxMaxLng: r.bbox_max_lng ?? r.bboxMaxLng,
+    startPointId: r.start_point_id ?? r.startPointId,
+    endPointId: r.end_point_id ?? r.endPointId,
+    createdBy: r.created_by ?? r.createdBy,
+    updatedBy: r.updated_by ?? r.updatedBy,
+  })) as Cable[];
 }
 
 export async function getCableById(id: number): Promise<Cable | undefined> {
@@ -355,19 +370,27 @@ export async function getBuildingsInBounds(
 ): Promise<Building[]> {
   const db = await getDb();
   if (!db) return [];
-  return db
-    .select()
-    .from(buildings)
-    .where(
-      and(
-        eq(buildings.regionId, regionId),
-        sql`${buildings.bboxMinLat} <= ${String(maxLat)}`,
-        sql`${buildings.bboxMaxLat} >= ${String(minLat)}`,
-        sql`${buildings.bboxMinLng} <= ${String(maxLng)}`,
-        sql`${buildings.bboxMaxLng} >= ${String(minLng)}`
-      )
-    )
-    .limit(limit);
+  // Use fully raw SQL to avoid TiDB decimal type mismatch with parameterized queries
+  const rows = await db.execute(sql`
+    SELECT * FROM buildings
+    WHERE region_id = ${regionId}
+      AND bbox_min_lat <= ${sql.raw(String(maxLat))}
+      AND bbox_max_lat >= ${sql.raw(String(minLat))}
+      AND bbox_min_lng <= ${sql.raw(String(maxLng))}
+      AND bbox_max_lng >= ${sql.raw(String(minLng))}
+    LIMIT ${sql.raw(String(limit))}
+  `);
+  const result = Array.isArray(rows[0]) ? rows[0] : rows;
+  return (result as any[]).map((r: any) => ({
+    ...r,
+    isPublic: Boolean(r.is_public ?? r.isPublic),
+    regionId: r.region_id ?? r.regionId,
+    bboxMinLat: r.bbox_min_lat ?? r.bboxMinLat,
+    bboxMinLng: r.bbox_min_lng ?? r.bboxMinLng,
+    bboxMaxLat: r.bbox_max_lat ?? r.bboxMaxLat,
+    bboxMaxLng: r.bbox_max_lng ?? r.bboxMaxLng,
+    createdBy: r.created_by ?? r.createdBy,
+  })) as Building[];
 }
 
 export async function getBuildingById(id: number): Promise<Building | undefined> {
@@ -1074,15 +1097,26 @@ export async function deleteSplitter(id: number) {
 // ─── Cable Ducts ──────────────────────────────────────────────────────────────
 export async function getCableDuctsByBounds(regionId: number, minLat: number, minLng: number, maxLat: number, maxLng: number) {
   const db = await getDb(); if (!db) return null as any;
-  return db.select().from(cableDucts).where(
-    and(
-      eq(cableDucts.regionId, regionId),
-      sql`${cableDucts.bboxMinLat} >= ${String(minLat - 0.01)}`,
-      sql`${cableDucts.bboxMaxLat} <= ${String(maxLat + 0.01)}`,
-      sql`${cableDucts.bboxMinLng} >= ${String(minLng - 0.01)}`,
-      sql`${cableDucts.bboxMaxLng} <= ${String(maxLng + 0.01)}`
-    )
-  );
+  // Use fully raw SQL to avoid TiDB decimal type mismatch with parameterized queries
+  const rows = await db.execute(sql`
+    SELECT * FROM cable_ducts
+    WHERE region_id = ${regionId}
+      AND bbox_min_lat >= ${sql.raw(String(minLat - 0.01))}
+      AND bbox_max_lat <= ${sql.raw(String(maxLat + 0.01))}
+      AND bbox_min_lng >= ${sql.raw(String(minLng - 0.01))}
+      AND bbox_max_lng <= ${sql.raw(String(maxLng + 0.01))}
+  `);
+  const result = Array.isArray(rows[0]) ? rows[0] : rows;
+  return (result as any[]).map((r: any) => ({
+    ...r,
+    regionId: r.region_id ?? r.regionId,
+    bboxMinLat: r.bbox_min_lat ?? r.bboxMinLat,
+    bboxMinLng: r.bbox_min_lng ?? r.bboxMinLng,
+    bboxMaxLat: r.bbox_max_lat ?? r.bboxMaxLat,
+    bboxMaxLng: r.bbox_max_lng ?? r.bboxMaxLng,
+    createdBy: r.created_by ?? r.createdBy,
+    route: typeof r.route === 'string' ? JSON.parse(r.route) : r.route,
+  }));
 }
 export async function getCableDuctsByRegion(regionId: number) {
   const db = await getDb(); if (!db) return null as any;
