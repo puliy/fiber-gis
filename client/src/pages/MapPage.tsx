@@ -60,7 +60,7 @@ export default function MapPage() {
     cables: true, buildings: true, cableDucts: true,
   });
   const [selectedRegionId, setSelectedRegionId] = useState<number>(1);
-  const [selectedObject, setSelectedObject] = useState<{ type: "map_point" | "cable"; id: number } | null>(null);
+  const [selectedObject, setSelectedObject] = useState<{ type: "map_point" | "cable" | "duct"; id: number } | null>(null);
   const [createData, setCreateData] = useState<CreateData | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -100,7 +100,7 @@ export default function MapPage() {
   const canEdit = isAuthenticated && (user?.role === "admin" || user?.role === "user" || user?.role === "editor");
 
   const handleObjectSelect = useCallback((type: string, id: number) => {
-    setSelectedObject({ type: type as "map_point" | "cable", id });
+    setSelectedObject({ type: type as "map_point" | "cable" | "duct", id });
   }, []);
 
   const handleObjectCreate = useCallback((type: string, data: unknown) => {

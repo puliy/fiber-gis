@@ -416,6 +416,13 @@ export default function FiberMap({
           `<div style="font-size:11px"><strong>${duct.name ?? "Канализация"}</strong><br/>Каналов: ${duct.capacity ?? 1} · ${duct.material ?? "plastic"}</div>`,
           { sticky: true }
         );
+        // Click on duct opens its dialog
+        const ductId = duct.id;
+        pl.on("click", (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stopPropagation(e);
+          if (activeToolRef.current !== "select") return;
+          onObjectSelectRef.current("duct", ductId);
+        });
         pl.addTo(map);
       } catch {}
     }

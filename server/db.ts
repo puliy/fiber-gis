@@ -273,8 +273,17 @@ export async function getCableById(id: number): Promise<Cable | undefined> {
 export async function createCable(data: InsertCable, userId: number, userName: string): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // TiDB requires explicit 0/1 for boolean columns
-  const sanitized = { ...data, isPublic: data.isPublic ? 1 : 0 } as any;
+  // TiDB requires explicit 0/1 for boolean and strings for decimal columns
+  const sanitized = {
+    ...data,
+    isPublic: data.isPublic ? 1 : 0,
+    lengthCalc: data.lengthCalc !== undefined ? String(data.lengthCalc) : undefined,
+    lengthFact: data.lengthFact !== undefined ? String(data.lengthFact) : undefined,
+    bboxMinLat: data.bboxMinLat !== undefined ? String(data.bboxMinLat) : undefined,
+    bboxMinLng: data.bboxMinLng !== undefined ? String(data.bboxMinLng) : undefined,
+    bboxMaxLat: data.bboxMaxLat !== undefined ? String(data.bboxMaxLat) : undefined,
+    bboxMaxLng: data.bboxMaxLng !== undefined ? String(data.bboxMaxLng) : undefined,
+  } as any;
   const result = await db.insert(cables).values({ ...sanitized, createdBy: userId, updatedBy: userId });
   const insertId = (result[0] as any).insertId;
   await writeAuditLog("cables", insertId, "INSERT", userId, userName, null, data);

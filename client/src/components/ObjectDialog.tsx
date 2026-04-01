@@ -158,7 +158,7 @@ function OpticalCrossButton({ mapPointId, onClose, navigate }: { mapPointId: num
 }
 
 interface ObjectDialogProps {
-  objectType: "map_point" | "cable" | null;
+  objectType: "map_point" | "cable" | "duct" | null;
   objectId: number | null;
   onClose: () => void;
   onDeleted: () => void;
@@ -183,9 +183,15 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
     { enabled: isOpen && objectType === "cable" }
   );
 
+  const { data: ductData, refetch: refetchDuct } = trpc.cableDucts.byId.useQuery(
+    { id: objectId! },
+    { enabled: isOpen && objectType === "duct" }
+  );
+
+  const auditTableName = objectType === "map_point" ? "map_points" : objectType === "cable" ? "cables" : "cable_ducts";
   const { data: auditData } = trpc.audit.forObject.useQuery(
-    { tableName: objectType === "map_point" ? "map_points" : "cables", objectId: objectId! },
-    { enabled: isOpen }
+    { tableName: auditTableName, objectId: objectId! },
+    { enabled: isOpen && objectType !== "duct" }
   );
 
   const { data: cablesByPoint } = trpc.cables.byPoint.useQuery(
@@ -213,7 +219,17 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
     onError: (e) => toast.error(e.message),
   });
 
-  const currentData = objectType === "map_point" ? pointData : cableData;
+  const upsertDuct = trpc.cableDucts.upsert.useMutation({
+    onSuccess: () => { toast.success("Канализация обновлена"); setIsEditing(false); refetchDuct(); onUpdated(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteDuct = trpc.cableDucts.delete.useMutation({
+    onSuccess: () => { toast.success("Канализация удалена"); onDeleted(); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const currentData = objectType === "map_point" ? pointData : objectType === "cable" ? cableData : ductData;
 
   useEffect(() => {
     if (currentData && !isEditing) {
@@ -237,13 +253,24 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
         type: editData.type as any,
         isPublic: editData.isPublic as boolean,
       });
-    } else {
+    } else if (objectType === "cable") {
       updateCable.mutate({
         id: objectId,
         name: editData.name as string,
         description: editData.description as string,
         status: editData.status as any,
         layingType: editData.layingType as any,
+      });
+    } else if (objectType === "duct" && ductData) {
+      upsertDuct.mutate({
+        id: objectId,
+        regionId: ductData.regionId,
+        name: editData.name as string,
+        capacity: editData.capacity ? Number(editData.capacity) : undefined,
+        diameter: editData.diameter ? Number(editData.diameter) : undefined,
+        material: editData.material as any,
+        route: (typeof ductData.route === "string" ? JSON.parse(ductData.route) : ductData.route) as { lat: number; lng: number }[],
+        description: editData.description as string,
       });
     }
   };
@@ -257,11 +284,15 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
           <div className="flex items-center gap-2">
             {objectType === "map_point"
               ? <MapPin className="w-4 h-4 text-primary" />
+              : objectType === "duct"
+              ? <span className="text-green-400 font-bold text-xs">КК</span>
               : <Cable className="w-4 h-4 text-blue-400" />
             }
             <DialogTitle className="text-base">
               {objectType === "map_point"
                 ? (pointData ? `${getTypeLabel(pointData.type)} #${pointData.id}` : "Загрузка...")
+                : objectType === "duct"
+                ? (ductData ? `Канализация: ${ductData.name ?? `#${ductData.id}`}` : "Загрузка...")
                 : (cableData ? `Кабель #${cableData.id}` : "Загрузка...")
               }
             </DialogTitle>
@@ -310,7 +341,7 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
               <div className="flex gap-2 px-4 py-3 border-t border-border">
                 {isEditing ? (
                   <>
-                    <Button size="sm" onClick={handleSave} disabled={updatePoint.isPending || updateCable.isPending}>
+                    <Button size="sm" onClick={handleSave} disabled={updatePoint.isPending || updateCable.isPending || upsertDuct.isPending}>
                       Сохранить
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
@@ -355,7 +386,8 @@ export default function ObjectDialog({ objectType, objectId, onClose, onDeleted,
                             className="bg-destructive text-destructive-foreground"
                             onClick={() => {
                               if (objectType === "map_point") deletePoint.mutate({ id: objectId! });
-                              else deleteCable.mutate({ id: objectId! });
+                              else if (objectType === "cable") deleteCable.mutate({ id: objectId! });
+                              else deleteDuct.mutate({ id: objectId! });
                             }}
                           >
                             Удалить
@@ -455,6 +487,14 @@ function ViewInfo({ objectType, data }: { objectType: string; data: Record<strin
       { label: "Статус", value: getStatusLabel(data.status as string) },
       { label: "Координаты", value: `${Number(data.lat).toFixed(6)}, ${Number(data.lng).toFixed(6)}` },
       { label: "Адрес", value: data.address as string ?? "—" },
+      { label: "Описание", value: data.description as string ?? "—" },
+    );
+  } else if (objectType === "duct") {
+    rows.push(
+      { label: "Название", value: data.name as string ?? "—" },
+      { label: "Каналов", value: data.capacity ? String(data.capacity) : "—" },
+      { label: "Диаметр, мм", value: data.diameter ? String(data.diameter) : "—" },
+      { label: "Материал", value: data.material as string ?? "—" },
       { label: "Описание", value: data.description as string ?? "—" },
     );
   } else {
@@ -557,6 +597,41 @@ function EditForm({
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {objectType === "duct" && (
+        <>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Каналов</Label>
+            <Input
+              type="number" min={1} max={96}
+              value={(data.capacity as number) ?? 1}
+              onChange={(e) => onChange("capacity", e.target.value)}
+              className="h-8 text-sm bg-input"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Диаметр, мм</Label>
+            <Input
+              type="number"
+              value={(data.diameter as number) ?? ""}
+              onChange={(e) => onChange("diameter", e.target.value)}
+              className="h-8 text-sm bg-input"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Материал</Label>
+            <Select value={(data.material as string) ?? "plastic"} onValueChange={(v) => onChange("material", v)}>
+              <SelectTrigger className="h-8 text-sm bg-input"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-popover">
+                <SelectItem value="plastic">Пластик</SelectItem>
+                <SelectItem value="concrete">Бетон</SelectItem>
+                <SelectItem value="metal">Металл</SelectItem>
+                <SelectItem value="other">Другой</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       )}
 
       <div className="space-y-1">
