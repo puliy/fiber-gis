@@ -124,6 +124,9 @@ export default function FiberMap({
   useEffect(() => { onObjectSelectRef.current = onObjectSelect; }, [onObjectSelect]);
   const cableDrawRef = useRef<{ points: L.LatLng[]; polyline: L.Polyline | null }>({ points: [], polyline: null });
   const traceLayerRef = useRef<L.LayerGroup | null>(null);
+  // Timer to distinguish single click from double click during drawing
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingClickRef = useRef<{ latlng: L.LatLng; map: L.Map } | null>(null);
   const buildingDrawRef = useRef<{ points: L.LatLng[]; polygon: L.Polygon | null }>({ points: [], polygon: null });
   const ductDrawRef = useRef<{ points: L.LatLng[]; polyline: L.Polyline | null }>({ points: [], polyline: null });
   const [bounds, setBounds] = useState<{ minLat: number; minLng: number; maxLat: number; maxLng: number } | null>(null);
@@ -223,22 +226,35 @@ export default function FiberMap({
     map.on("zoomend", updateBounds);
     updateBounds();
 
-    // Map click handler
+    // Map click handler — delayed for line/polygon tools to avoid adding point on dblclick
     map.on("click", (e: L.LeafletMouseEvent) => {
       const tool = activeToolRef.current;
       if (tool === "select") return;
 
       if (tool.startsWith("add_") && tool !== "add_cable" && tool !== "add_building" && tool !== "add_duct") {
-        // Map tool name to point type
+        // Point tools: instant click
         const pointType = tool.replace("add_", "");
         onObjectCreateRef.current(pointType, { lat: e.latlng.lat, lng: e.latlng.lng });
-      } else if (tool === "add_cable") {
-        handleCableClick(e.latlng, map);
-      } else if (tool === "add_building") {
-        handleBuildingClick(e.latlng, map);
-      } else if (tool === "add_duct") {
-        handleDuctClick(e.latlng, map);
+      } else if (tool === "add_cable" || tool === "add_building" || tool === "add_duct") {
+        // Line/polygon tools: delay to distinguish from dblclick
+        if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+        pendingClickRef.current = { latlng: e.latlng, map };
+        clickTimerRef.current = setTimeout(() => {
+          const pending = pendingClickRef.current;
+          if (!pending) return;
+          pendingClickRef.current = null;
+          const currentTool = activeToolRef.current;
+          if (currentTool === "add_cable") handleCableClick(pending.latlng, pending.map);
+          else if (currentTool === "add_building") handleBuildingClick(pending.latlng, pending.map);
+          else if (currentTool === "add_duct") handleDuctClick(pending.latlng, pending.map);
+        }, 220);
       }
+    });
+
+    // dblclick: cancel pending single click, then finish drawing
+    map.on("dblclick", () => {
+      if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
+      pendingClickRef.current = null;
     });
 
     return () => {
@@ -305,6 +321,9 @@ export default function FiberMap({
 
       marker.on("click", (e) => {
         L.DomEvent.stopPropagation(e);
+        // During drawing — ignore clicks on markers to avoid interrupting drawing
+        const tool = activeToolRef.current;
+        if (tool === "add_cable" || tool === "add_building" || tool === "add_duct") return;
         onObjectSelectRef.current("map_point", pt.id);
       });
 
@@ -349,6 +368,9 @@ export default function FiberMap({
 
         polyline.on("click", (e) => {
           L.DomEvent.stopPropagation(e);
+          // During drawing — ignore clicks on cables
+          const tool = activeToolRef.current;
+          if (tool === "add_cable" || tool === "add_building" || tool === "add_duct") return;
           onObjectSelectRef.current("cable", cable.id);
         });
 
@@ -466,9 +488,15 @@ export default function FiberMap({
   }, []);
 
   const finishCableDraw = useCallback(() => {
-    const pts = cableDrawRef.current.points;
-    if (pts.length >= 2) {
-      onObjectCreate("cable", { route: pts.map((p) => ({ lat: p.lat, lng: p.lng })) });
+    const pts = [...cableDrawRef.current.points];
+    // Remove duplicate last point (Leaflet fires click twice on dblclick in some versions)
+    const deduped = pts.filter((p, i) => {
+      if (i === 0) return true;
+      const prev = pts[i - 1];
+      return !(Math.abs(p.lat - prev.lat) < 1e-8 && Math.abs(p.lng - prev.lng) < 1e-8);
+    });
+    if (deduped.length >= 2) {
+      onObjectCreate("cable", { route: deduped.map((p) => ({ lat: p.lat, lng: p.lng })) });
     }
     cancelCableDraw();
   }, [onObjectCreate]);
@@ -524,9 +552,14 @@ export default function FiberMap({
   }, []);
 
   const finishBuildingDraw = useCallback(() => {
-    const pts = buildingDrawRef.current.points;
-    if (pts.length >= 3) {
-      onObjectCreate("building", { polygon: pts.map((p) => ({ lat: p.lat, lng: p.lng })) });
+    const pts = [...buildingDrawRef.current.points];
+    const deduped = pts.filter((p, i) => {
+      if (i === 0) return true;
+      const prev = pts[i - 1];
+      return !(Math.abs(p.lat - prev.lat) < 1e-8 && Math.abs(p.lng - prev.lng) < 1e-8);
+    });
+    if (deduped.length >= 3) {
+      onObjectCreate("building", { polygon: deduped.map((p) => ({ lat: p.lat, lng: p.lng })) });
     }
     cancelBuildingDraw();
   }, [onObjectCreate]);
@@ -565,9 +598,14 @@ export default function FiberMap({
   }, []);
 
   const finishDuctDraw = useCallback(() => {
-    const pts = ductDrawRef.current.points;
-    if (pts.length >= 2) {
-      onObjectCreate("duct", { route: pts.map((p) => ({ lat: p.lat, lng: p.lng })) });
+    const pts = [...ductDrawRef.current.points];
+    const deduped = pts.filter((p, i) => {
+      if (i === 0) return true;
+      const prev = pts[i - 1];
+      return !(Math.abs(p.lat - prev.lat) < 1e-8 && Math.abs(p.lng - prev.lng) < 1e-8);
+    });
+    if (deduped.length >= 2) {
+      onObjectCreate("duct", { route: deduped.map((p) => ({ lat: p.lat, lng: p.lng })) });
     }
     cancelDuctDraw();
   }, [onObjectCreate]);
