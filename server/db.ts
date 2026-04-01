@@ -248,16 +248,17 @@ export async function getCablesInBounds(
   const db = await getDb();
   if (!db) return [];
   // Load cables whose bounding box overlaps the viewport
+  // Use raw SQL for decimal comparisons to avoid TiDB type mismatch
   return db
     .select()
     .from(cables)
     .where(
       and(
         eq(cables.regionId, regionId),
-        lte(cables.bboxMinLat, String(maxLat)),
-        gte(cables.bboxMaxLat, String(minLat)),
-        lte(cables.bboxMinLng, String(maxLng)),
-        gte(cables.bboxMaxLng, String(minLng))
+        sql`${cables.bboxMinLat} <= ${String(maxLat)}`,
+        sql`${cables.bboxMaxLat} >= ${String(minLat)}`,
+        sql`${cables.bboxMinLng} <= ${String(maxLng)}`,
+        sql`${cables.bboxMaxLng} >= ${String(minLng)}`
       )
     )
     .limit(limit);
@@ -273,18 +274,39 @@ export async function getCableById(id: number): Promise<Cable | undefined> {
 export async function createCable(data: InsertCable, userId: number, userName: string): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // TiDB requires explicit 0/1 for boolean and strings for decimal columns
-  const sanitized = {
-    ...data,
-    isPublic: data.isPublic ? 1 : 0,
-    lengthCalc: data.lengthCalc !== undefined ? String(data.lengthCalc) : undefined,
-    lengthFact: data.lengthFact !== undefined ? String(data.lengthFact) : undefined,
-    bboxMinLat: data.bboxMinLat !== undefined ? String(data.bboxMinLat) : undefined,
-    bboxMinLng: data.bboxMinLng !== undefined ? String(data.bboxMinLng) : undefined,
-    bboxMaxLat: data.bboxMaxLat !== undefined ? String(data.bboxMaxLat) : undefined,
-    bboxMaxLng: data.bboxMaxLng !== undefined ? String(data.bboxMaxLng) : undefined,
-  } as any;
-  const result = await db.insert(cables).values({ ...sanitized, createdBy: userId, updatedBy: userId });
+  // Use raw SQL INSERT to avoid TiDB decimal type mismatch with Drizzle ORM
+  // TiDB requires string literals for decimal columns, not JS numbers
+  const routeJson = typeof data.route === "string" ? data.route : JSON.stringify(data.route);
+  const isPublicVal = data.isPublic ? 1 : 0;
+  const result = await db.execute(sql`
+    INSERT INTO cables (
+      region_id, template_id, name, status, laying_type, route,
+      length_calc, length_fact,
+      bbox_min_lat, bbox_min_lng, bbox_max_lat, bbox_max_lng,
+      start_point_id, end_point_id, description, attributes, is_public,
+      created_by, updated_by
+    ) VALUES (
+      ${data.regionId},
+      ${data.templateId ?? null},
+      ${data.name ?? null},
+      ${data.status ?? 'fact'},
+      ${data.layingType ?? 'aerial'},
+      ${routeJson},
+      ${data.lengthCalc !== undefined ? String(data.lengthCalc) : null},
+      ${data.lengthFact !== undefined ? String(data.lengthFact) : null},
+      ${data.bboxMinLat !== undefined ? String(data.bboxMinLat) : null},
+      ${data.bboxMinLng !== undefined ? String(data.bboxMinLng) : null},
+      ${data.bboxMaxLat !== undefined ? String(data.bboxMaxLat) : null},
+      ${data.bboxMaxLng !== undefined ? String(data.bboxMaxLng) : null},
+      ${data.startPointId ?? null},
+      ${data.endPointId ?? null},
+      ${data.description ?? null},
+      ${data.attributes ? JSON.stringify(data.attributes) : null},
+      ${isPublicVal},
+      ${userId},
+      ${userId}
+    )
+  `);
   const insertId = (result[0] as any).insertId;
   await writeAuditLog("cables", insertId, "INSERT", userId, userName, null, data);
   return insertId;
@@ -339,10 +361,10 @@ export async function getBuildingsInBounds(
     .where(
       and(
         eq(buildings.regionId, regionId),
-        lte(buildings.bboxMinLat, String(maxLat)),
-        gte(buildings.bboxMaxLat, String(minLat)),
-        lte(buildings.bboxMinLng, String(maxLng)),
-        gte(buildings.bboxMaxLng, String(minLng))
+        sql`${buildings.bboxMinLat} <= ${String(maxLat)}`,
+        sql`${buildings.bboxMaxLat} >= ${String(minLat)}`,
+        sql`${buildings.bboxMinLng} <= ${String(maxLng)}`,
+        sql`${buildings.bboxMaxLng} >= ${String(minLng)}`
       )
     )
     .limit(limit);
@@ -1055,10 +1077,10 @@ export async function getCableDuctsByBounds(regionId: number, minLat: number, mi
   return db.select().from(cableDucts).where(
     and(
       eq(cableDucts.regionId, regionId),
-      gte(cableDucts.bboxMinLat, String(minLat - 0.01)),
-      lte(cableDucts.bboxMaxLat, String(maxLat + 0.01)),
-      gte(cableDucts.bboxMinLng, String(minLng - 0.01)),
-      lte(cableDucts.bboxMaxLng, String(maxLng + 0.01))
+      sql`${cableDucts.bboxMinLat} >= ${String(minLat - 0.01)}`,
+      sql`${cableDucts.bboxMaxLat} <= ${String(maxLat + 0.01)}`,
+      sql`${cableDucts.bboxMinLng} >= ${String(minLng - 0.01)}`,
+      sql`${cableDucts.bboxMaxLng} <= ${String(maxLng + 0.01)}`
     )
   );
 }
