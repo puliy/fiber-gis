@@ -205,7 +205,9 @@ export async function getMapPointById(id: number): Promise<MapPoint | undefined>
 export async function createMapPoint(data: InsertMapPoint, userId: number, userName: string): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(mapPoints).values({ ...data, createdBy: userId, updatedBy: userId });
+  // TiDB requires explicit 0/1 for boolean columns
+  const sanitized = { ...data, isPublic: data.isPublic ? 1 : 0 } as any;
+  const result = await db.insert(mapPoints).values({ ...sanitized, createdBy: userId, updatedBy: userId });
   const insertId = (result[0] as any).insertId;
   await writeAuditLog("map_points", insertId, "INSERT", userId, userName, null, data);
   return insertId;
@@ -271,7 +273,9 @@ export async function getCableById(id: number): Promise<Cable | undefined> {
 export async function createCable(data: InsertCable, userId: number, userName: string): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(cables).values({ ...data, createdBy: userId, updatedBy: userId });
+  // TiDB requires explicit 0/1 for boolean columns
+  const sanitized = { ...data, isPublic: data.isPublic ? 1 : 0 } as any;
+  const result = await db.insert(cables).values({ ...sanitized, createdBy: userId, updatedBy: userId });
   const insertId = (result[0] as any).insertId;
   await writeAuditLog("cables", insertId, "INSERT", userId, userName, null, data);
   return insertId;
